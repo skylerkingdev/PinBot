@@ -49,6 +49,14 @@ deploy it to a compatible cloud provider.
 - [Server](docs/SERVER.md): configuration, API, releases
 - [NVRAM safety](docs/NVRAM-SAFETY.md)
 - [Security](SECURITY.md)
+- [Code signing policy](docs/CODE-SIGNING.md)
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). Committers, reviewers and approvers:
+[skylerkingdev](https://github.com/skylerkingdev). `pinbot.exe` sends data only to the PinBot server it was paired
+with. Details: [CODE-SIGNING.md](docs/CODE-SIGNING.md).
 
 ## Development
 

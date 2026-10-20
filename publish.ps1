@@ -2,8 +2,10 @@
 # and dist\pinbot-server-deploy.zip (server sources + deploy\ for a NAS / Docker host, including pinbot.exe for
 # /download/pinbot.exe; no secrets or data).
 # -Version: the release number (default: now, UTC yyyyMMddHHmmss). -RequireKey: fail instead of creating a new signing
-# key (the release workflow). -SkipTests: the caller already ran them.
-param([string]$Version, [switch]$RequireKey, [switch]$SkipTests)
+# key (the release workflow). -SkipTests: the caller already ran them. -SkipManifest: stop after dist\pinbot.exe, without
+# dist\pinbot.json or the server package (the release workflow Authenticode-signs the exe first, then writes the manifest,
+# whose SHA-256 and size must be the signed file's).
+param([string]$Version, [switch]$RequireKey, [switch]$SkipTests, [switch]$SkipManifest)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -41,6 +43,10 @@ function Zip($dir, $zip) {
     } finally { $archive.Dispose() }
 }
 Copy-Item "$out\pinbot.exe" 'dist\pinbot.exe'
+if ($SkipManifest) {
+    Write-Host "release $version (no manifest)"
+    exit 0
+}
 dotnet dist\signtool\PinBot.Sign.dll sign keys dist\pinbot.exe $version dist\pinbot.json
 if ($LASTEXITCODE -ne 0) { throw 'signing the release failed' }
 

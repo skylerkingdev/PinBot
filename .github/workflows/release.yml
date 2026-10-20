@@ -1,6 +1,8 @@
 # Every push to master that changes what runs (server, agent, deploy files, maps) becomes a signed release, once the
 # same checks as CI pass:
-#   1. pinbot.exe, signed with the release key (the secret UPDATE_SIGNING_KEY in the protected "release" environment);
+#   1. pinbot.exe, Authenticode-signed through SignPath Foundation (docs/CODE-SIGNING.md: a maintainer approves each
+#      release in SignPath; skipped while the "release" environment has no SIGNPATH_API_TOKEN), then signed for
+#      auto-update with the release key (the secret UPDATE_SIGNING_KEY in the protected "release" environment);
 #   2. the server image (with that pinbot.exe inside) and the updater image, for amd64 and arm64, on ghcr.io;
 #   3. a GitHub Release whose server-release.json names both images by digest, signed with the same key.
 # Servers' updaters install it (early ring at once, stable ring after 48 h); their VPins update from their server.
@@ -37,10 +39,12 @@ jobs:
     needs: test
     runs-on: windows-latest
     environment: release
-    timeout-minutes: 20
+    timeout-minutes: 200 # most of it waiting for the release to be approved in SignPath
     outputs:
       version: ${{ steps.version.outputs.version }}
       public-key: ${{ steps.build.outputs.public-key }}
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -54,6 +58,7 @@ jobs:
         shell: pwsh
         run: "\"version=$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))\" >> $env:GITHUB_OUTPUT"
 
+      # pinbot.exe only: the update manifest (SHA-256 and size) must describe the Authenticode-signed file
       - id: build
         shell: pwsh
         env:
@@ -62,9 +67,58 @@ jobs:
           if (-not $env:UPDATE_SIGNING_KEY) { throw 'the release environment has no UPDATE_SIGNING_KEY secret' }
           New-Item -ItemType Directory -Force keys | Out-Null
           [IO.File]::WriteAllText("$PWD\keys\update-signing.pem", $env:UPDATE_SIGNING_KEY)
-          ./publish.ps1 -Version ${{ steps.version.outputs.version }} -RequireKey -SkipTests
+          ./publish.ps1 -Version ${{ steps.version.outputs.version }} -RequireKey -SkipTests -SkipManifest
           "public-key=$((Get-Content keys\update-signing.pub -Raw).Trim())" >> $env:GITHUB_OUTPUT
-          Remove-Item keys -Recurse -Force
+          Remove-Item keys -Recurse -Force # not on disk while SignPath's action runs
+
+      - id: unsigned
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-unsigned
+          path: dist/pinbot.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      # SignPath Foundation's open source program: the job waits here until a maintainer approves the release in SignPath
+      - id: authenticode
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: PinBot
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 10800
+          output-artifact-directory: dist/signed
+
+      - name: Use the signed pinbot.exe
+        shell: pwsh
+        run: |
+          if (-not $env:SIGNPATH_API_TOKEN) {
+            Write-Host '::warning::the release environment has no SIGNPATH_API_TOKEN: pinbot.exe is not Authenticode-signed'
+            exit 0
+          }
+          $s = Get-AuthenticodeSignature dist\signed\pinbot.exe
+          if ($s.Status -ne 'Valid') { throw "pinbot.exe from SignPath is not validly signed: $($s.Status) $($s.StatusMessage)" }
+          Write-Host "Authenticode: $($s.SignerCertificate.Subject)"
+          Move-Item dist\signed\pinbot.exe dist\pinbot.exe -Force
+
+      # after Authenticode: VPins check this SHA-256 and size against the file they download
+      - name: Sign the update manifest
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          New-Item -ItemType Directory -Force keys | Out-Null
+          [IO.File]::WriteAllText("$PWD\keys\update-signing.pem", $env:UPDATE_SIGNING_KEY)
+          try {
+            dotnet dist\signtool\PinBot.Sign.dll sign keys dist\pinbot.exe ${{ steps.version.outputs.version }} dist\pinbot.json
+            if ($LASTEXITCODE -ne 0) { throw 'signing the release failed' }
+          } finally { Remove-Item keys -Recurse -Force }
+          Get-Content dist\pinbot.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -105,6 +159,7 @@ jobs:
           prev=$(git tag --list 'v2*' --sort=-version:refname | head -n1)
           range=${prev:+$prev..}HEAD
           git log $range --no-merges --format='- %s' | head -n 60 > "$RUNNER_TEMP/notes.md"
+          printf '\n[Code signing policy](https://github.com/%s/blob/master/docs/CODE-SIGNING.md)\n' "${{ github.repository }}" >> "$RUNNER_TEMP/notes.md"
           git log $range --no-merges --format='%B' | sed -n 's/^Players:[[:space:]]*//p' > "$RUNNER_TEMP/players.txt"
           url="https://github.com/${{ github.repository }}/releases/tag/v$RELEASE"
           jq -n --argjson version "$RELEASE" --arg url "$url" --rawfile p "$RUNNER_TEMP/players.txt" \
