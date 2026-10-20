@@ -1,0 +1,900 @@
+{
+  "_fileformat": 0.8,
+  "audits": {
+    "B.2 Earnings Audits": {
+      "02": {
+        "label": "Recent Left Slot",
+        "value": 0
+      },
+      "03": {
+        "label": "Recent Cent. Slot",
+        "value": 11
+      },
+      "04": {
+        "label": "Recent Rght. Slot",
+        "value": 1
+      },
+      "05": {
+        "label": "Recent 4th Slot",
+        "value": 0
+      },
+      "06": {
+        "label": "Recent Paid Cred",
+        "value": 27
+      },
+      "07": {
+        "label": "Recent Serv. Cred",
+        "value": 0
+      },
+      "09": {
+        "label": "Total Left Slot",
+        "value": 0
+      },
+      "10": {
+        "label": "Total Cent. Slot",
+        "value": 11
+      },
+      "11": {
+        "label": "Total Rght. Slot",
+        "value": 1
+      },
+      "12": {
+        "label": "Total 4th Slot",
+        "value": 0
+      },
+      "13": {
+        "label": "Total Paid Cred",
+        "value": 27
+      },
+      "14": {
+        "label": "Total Serv. Cred",
+        "value": 0
+      }
+    },
+    "B.3 Standard Audits": {
+      "01": {
+        "label": "Games Started",
+        "value": 4
+      },
+      "02": {
+        "label": "Total Plays",
+        "value": 2
+      },
+      "03": {
+        "label": "Total Free Plays",
+        "value": 0
+      },
+      "05": {
+        "label": "Replay Awards",
+        "value": 0
+      },
+      "09": {
+        "label": "Match Awards",
+        "value": 0
+      },
+      "11": {
+        "label": "H.S.T.D. Credits",
+        "value": 0
+      },
+      "13": {
+        "label": "Extra Balls",
+        "value": 0
+      },
+      "15": {
+        "label": "Tickets Awarded",
+        "value": 0
+      },
+      "17": {
+        "label": "Left Drains",
+        "value": 0
+      },
+      "18": {
+        "label": "Right Drains",
+        "value": 0
+      },
+      "21": {
+        "label": "Play Time",
+        "units": "seconds",
+        "value": 130
+      },
+      "22": {
+        "label": "Minutes On",
+        "units": "minutes",
+        "value": 10
+      },
+      "23": {
+        "label": "Balls Played",
+        "value": 6
+      },
+      "24": {
+        "label": "Tilts",
+        "value": 0
+      },
+      "25": {
+        "label": "Replay 1 Awards",
+        "value": 0
+      },
+      "26": {
+        "label": "Replay 2 Awards",
+        "value": 0
+      },
+      "27": {
+        "label": "Replay 3 Awards",
+        "value": 0
+      },
+      "28": {
+        "label": "Replay 4 Awards",
+        "value": 0
+      },
+      "29": {
+        "label": "1 Player Games",
+        "value": 1
+      },
+      "30": {
+        "label": "2 Player Games",
+        "value": 0
+      },
+      "31": {
+        "label": "3 Player Games",
+        "value": 0
+      },
+      "32": {
+        "label": "4 Player Games",
+        "value": 0
+      },
+      "33": {
+        "label": "H.S.T.D. Reset Count",
+        "value": 2998
+      },
+      "34": {
+        "label": "Burn-in Time",
+        "units": "seconds",
+        "value": 0
+      },
+      "35": {
+        "label": "1st Replay Level",
+        "value": 28
+      },
+      "36": {
+        "label": "Left Flipper",
+        "value": 37
+      },
+      "37": {
+        "label": "Right Flipper",
+        "value": 58
+      }
+    },
+    "B.4 FEATURE AUDS.": {
+      "01": {
+        "label": "BALL SAVES",
+        "value": 5
+      },
+      "02": {
+        "label": "TOTAL MULTIBALLS",
+        "value": 0
+      },
+      "03": {
+        "label": "BALLS LOCKED",
+        "value": 0
+      },
+      "04": {
+        "label": "CASTLE M.B. START",
+        "value": 0
+      },
+      "05": {
+        "label": "CASTLE M.B. J.P.",
+        "value": 0
+      },
+      "06": {
+        "label": "CASTLE M.B. S.J.",
+        "value": 0
+      },
+      "07": {
+        "label": "CASTLE M.B. E.B. LIT",
+        "value": 0
+      },
+      "08": {
+        "label": "CASTLE ATK. START",
+        "value": 0
+      },
+      "09": {
+        "label": "CASTLE ATK. COMPL.",
+        "value": 0
+      },
+      "10": {
+        "label": "CASTLE ATK. E.B.L.",
+        "value": 0
+      },
+      "11": {
+        "label": "1st CASTLE START",
+        "value": 0
+      },
+      "12": {
+        "label": "1st CASTLE COMPL.",
+        "value": 0
+      },
+      "13": {
+        "label": "2nd CASTLE START",
+        "value": 0
+      },
+      "14": {
+        "label": "2nd CASTLE COMPL.",
+        "value": 0
+      },
+      "15": {
+        "label": "3rd CASTLE START",
+        "value": 0
+      },
+      "16": {
+        "label": "3rd CASTLE COMPL.",
+        "value": 0
+      },
+      "17": {
+        "label": "4th CASTLE START",
+        "value": 0
+      },
+      "18": {
+        "label": "4th CASTLE COMPL.",
+        "value": 0
+      },
+      "19": {
+        "label": "5th CASTLE START",
+        "value": 0
+      },
+      "20": {
+        "label": "5th CASTLE COMPL.",
+        "value": 0
+      },
+      "21": {
+        "label": "6th CASTLE START",
+        "value": 0
+      },
+      "22": {
+        "label": "6th CASTLE COMPL.",
+        "value": 0
+      },
+      "23": {
+        "label": "TROLLS! LIT",
+        "value": 0
+      },
+      "24": {
+        "label": "TROLLS! START",
+        "value": 0
+      },
+      "25": {
+        "label": "TROLLS! COMPL.",
+        "value": 0
+      },
+      "26": {
+        "label": "TROLL BOMBS COLL.",
+        "value": 0
+      },
+      "27": {
+        "label": "TROLL BOMBS USED",
+        "value": 0
+      },
+      "28": {
+        "label": "JOUST MAD. LIT",
+        "value": 0
+      },
+      "29": {
+        "label": "CATAPULT MAD. LIT",
+        "value": 0
+      },
+      "30": {
+        "label": "PEASANT MAD. LIT",
+        "value": 0
+      },
+      "31": {
+        "label": "DAMSEL MAD. LIT",
+        "value": 0
+      },
+      "32": {
+        "label": "TROLL MAD. LIT",
+        "value": 0
+      },
+      "33": {
+        "label": "M.B. MADNESS START",
+        "value": 0
+      },
+      "34": {
+        "label": "1 MADNESS START",
+        "value": 0
+      },
+      "35": {
+        "label": "2 MADNESS START",
+        "value": 0
+      },
+      "36": {
+        "label": "3 MADNESS START",
+        "value": 0
+      },
+      "37": {
+        "label": "4 MADNESS START",
+        "value": 0
+      },
+      "38": {
+        "label": "5 MADNESS START",
+        "value": 0
+      },
+      "39": {
+        "label": "M.B. MADNESS JP.",
+        "value": 0
+      },
+      "40": {
+        "label": "M.B. MADNESS S.J.",
+        "value": 0
+      },
+      "41": {
+        "label": "M.B. MADNESS D.S.J.",
+        "value": 0
+      },
+      "42": {
+        "label": "HURRY UP START",
+        "value": 0
+      },
+      "43": {
+        "label": "HURRY UP AWARDS",
+        "value": 0
+      },
+      "44": {
+        "label": "HURRY UP E.B. LIT",
+        "value": 0
+      },
+      "45": {
+        "label": "R. MADNESS START",
+        "value": 0
+      },
+      "46": {
+        "label": "R. MADNESS COMPL.",
+        "value": 0
+      },
+      "47": {
+        "label": "R. MADNESS E.B.",
+        "value": 0
+      },
+      "48": {
+        "label": "BARNYRD M.B. START",
+        "value": 0
+      },
+      "49": {
+        "label": "B. KINGDOM START",
+        "value": 0
+      },
+      "50": {
+        "label": "B. KINGDOM COMPL.",
+        "value": 0
+      },
+      "51": {
+        "label": "SUPER SKILL SHOT",
+        "value": 0
+      },
+      "52": {
+        "label": "SUPER JETS START",
+        "value": 1
+      },
+      "53": {
+        "label": "RANDOM AWARD",
+        "value": 0
+      },
+      "54": {
+        "label": "RANDOM E.B. LIT",
+        "value": 0
+      },
+      "55": {
+        "label": "VIDEO MODE START",
+        "value": 0
+      },
+      "56": {
+        "label": "VIDEO E.B.",
+        "value": 0
+      },
+      "57": {
+        "label": "VIDEO COMPL.",
+        "value": 0
+      },
+      "58": {
+        "label": "SMACK TRL. START",
+        "value": 0
+      }
+    },
+    "B.5 Histograms": {
+      "01": {
+        "label": "0-0.99M Score",
+        "value": 0
+      },
+      "02": {
+        "label": "1-1.99M Score",
+        "value": 0
+      },
+      "03": {
+        "label": "2-4.99M Score",
+        "value": 1
+      },
+      "04": {
+        "label": "5-9.99M Score",
+        "value": 0
+      },
+      "05": {
+        "label": "10-19.99M Score",
+        "value": 0
+      },
+      "06": {
+        "label": "20-29.99M Score",
+        "value": 0
+      },
+      "07": {
+        "label": "30-39.99M Score",
+        "value": 0
+      },
+      "08": {
+        "label": "40-49.99M Score",
+        "value": 0
+      },
+      "09": {
+        "label": "50-59.99M Score",
+        "value": 0
+      },
+      "10": {
+        "label": "60-69.99M Score",
+        "value": 0
+      },
+      "11": {
+        "label": "70-79.99M Score",
+        "value": 0
+      },
+      "12": {
+        "label": "80-89.99M Score",
+        "value": 0
+      },
+      "13": {
+        "label": "Over 90M Score",
+        "value": 0
+      },
+      "14": {
+        "label": "Game Time 0.0-1.0M",
+        "value": 0
+      },
+      "15": {
+        "label": "Game Time 1.0-1.5M",
+        "value": 1
+      },
+      "16": {
+        "label": "Game Time 1.5-2.0M",
+        "value": 0
+      },
+      "17": {
+        "label": "Game Time 2.0-2.5M",
+        "value": 0
+      },
+      "18": {
+        "label": "Game Time 2.5-3.0M",
+        "value": 0
+      },
+      "19": {
+        "label": "Game Time 3.0-3.5M",
+        "value": 0
+      },
+      "20": {
+        "label": "Game Time 3.5-4.0M",
+        "value": 0
+      },
+      "21": {
+        "label": "Game Time 4-5M",
+        "value": 0
+      },
+      "22": {
+        "label": "Game Time 5-6M",
+        "value": 0
+      },
+      "23": {
+        "label": "Game Time 6-8M",
+        "value": 0
+      },
+      "24": {
+        "label": "Game Time 8-10M",
+        "value": 0
+      },
+      "25": {
+        "label": "Game Time 10-15M",
+        "value": 0
+      },
+      "26": {
+        "label": "Game Time > 15M",
+        "value": 0
+      }
+    },
+    "B.6 Timestamps": {
+      "02": {
+        "label": "Totals Cleared",
+        "value": "2024-01-17 14:48"
+      },
+      "03": {
+        "label": "Clock Last Set",
+        "value": "2024-01-17 14:48"
+      },
+      "04": {
+        "label": "Audits Cleared",
+        "value": "2024-01-17 14:48"
+      },
+      "05": {
+        "label": "Coins Cleared",
+        "value": "2024-01-17 14:48"
+      },
+      "06": {
+        "label": "Factory Setting",
+        "value": "2024-01-17 14:48"
+      },
+      "07": {
+        "label": "Last Game Start",
+        "value": "2024-06-19 16:40"
+      },
+      "08": {
+        "label": "Last Replay",
+        "value": "2024-01-17 14:48"
+      },
+      "09": {
+        "label": "Last HSTD Reset",
+        "value": "2024-01-17 14:48"
+      },
+      "10": {
+        "label": "Champion Reset",
+        "value": "2024-01-17 14:48"
+      },
+      "11": {
+        "label": "Last Printout",
+        "value": "2024-01-17 14:48"
+      },
+      "12": {
+        "label": "Last Serv. Cred",
+        "value": "2024-01-17 14:48"
+      }
+    }
+  },
+  "checksum16": [
+    {
+      "label": "Custom Message (2x32)",
+      "value": "valid"
+    },
+    {
+      "label": "Adjustments",
+      "value": "valid"
+    },
+    {
+      "label": "Timestamps",
+      "value": "valid"
+    },
+    {
+      "label": "High Scores",
+      "value": "valid"
+    },
+    {
+      "label": "Grand Champion",
+      "value": "valid"
+    },
+    {
+      "label": "HSTD Reset",
+      "value": "valid"
+    },
+    {
+      "label": "Credits",
+      "value": "valid"
+    },
+    {
+      "label": "Volume",
+      "value": "valid"
+    },
+    {
+      "value": "valid"
+    },
+    {
+      "label": "?? replay level",
+      "value": "valid"
+    },
+    {
+      "label": "Custom Message (3x32)",
+      "value": "valid"
+    },
+    {
+      "label": "Custom Message (2x32)",
+      "value": "valid"
+    },
+    {
+      "label": "Castle Champion",
+      "value": "valid"
+    },
+    {
+      "label": "Joust Champion",
+      "value": "valid"
+    },
+    {
+      "label": "Catapult Champion",
+      "value": "valid"
+    },
+    {
+      "label": "Peasant Champion",
+      "value": "valid"
+    },
+    {
+      "label": "Damsel Champion",
+      "value": "valid"
+    },
+    {
+      "label": "Troll Champion",
+      "value": "valid"
+    },
+    {
+      "label": "Madness Champion",
+      "value": "valid"
+    },
+    {
+      "label": "King of the Realm",
+      "value": "valid"
+    }
+  ],
+  "checksum8": [
+    {
+      "label": "Audits",
+      "value": "valid"
+    }
+  ],
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 8
+    },
+    "current_ball": {
+      "label": "Ball",
+      "value": 1
+    },
+    "current_player": {
+      "label": "Current Player",
+      "value": 1
+    },
+    "eb_on_this_ball": {
+      "label": "EBs this Ball",
+      "value": 0
+    },
+    "extra_balls": {
+      "label": "Extra Balls",
+      "value": 0
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": true
+    },
+    "max_credits": {
+      "label": "Maximum Credits",
+      "value": 10
+    },
+    "player_count": {
+      "label": "Players",
+      "value": 1
+    },
+    "replay": {
+      "label": "Replay",
+      "value": 28000000
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 587880
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      }
+    ],
+    "volume": {
+      "label": "Volume",
+      "value": 27
+    }
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "SLL"
+      },
+      "label": "Grand Champion",
+      "score": {
+        "value": 52000000
+      },
+      "short_label": "GC"
+    },
+    {
+      "initials": {
+        "value": "BRE"
+      },
+      "label": "First Place",
+      "score": {
+        "value": 44000000
+      },
+      "short_label": "1st"
+    },
+    {
+      "initials": {
+        "value": "LFS"
+      },
+      "label": "Second Place",
+      "score": {
+        "value": 40000000
+      },
+      "short_label": "2nd"
+    },
+    {
+      "initials": {
+        "value": "ZAP"
+      },
+      "label": "Third Place",
+      "score": {
+        "value": 36000000
+      },
+      "short_label": "3rd"
+    },
+    {
+      "initials": {
+        "value": "RCF"
+      },
+      "label": "Fourth Place",
+      "score": {
+        "value": 32000000
+      },
+      "short_label": "4th"
+    }
+  ],
+  "last_played": {
+    "value": "2024-11-22 00:01"
+  },
+  "mode_champions": [
+    {
+      "initials": {
+        "value": "JCY"
+      },
+      "label": "Castle Champion",
+      "score": {
+        "value": 6
+      },
+      "short_label": "Castle Champ"
+    },
+    {
+      "initials": {
+        "value": "DWF"
+      },
+      "label": "Joust Champion",
+      "score": {
+        "value": 5
+      },
+      "short_label": "Joust Champ"
+    },
+    {
+      "initials": {
+        "value": "ASR"
+      },
+      "label": "Catapult Champion",
+      "score": {
+        "value": 5
+      },
+      "short_label": "Catapult Champ"
+    },
+    {
+      "initials": {
+        "value": "BCM"
+      },
+      "label": "Peasant Champion",
+      "score": {
+        "value": 5
+      },
+      "short_label": "Peasant Champ"
+    },
+    {
+      "initials": {
+        "value": "DJW"
+      },
+      "label": "Damsel Champion",
+      "score": {
+        "value": 5
+      },
+      "short_label": "Damsel Champ"
+    },
+    {
+      "initials": {
+        "value": "JCD"
+      },
+      "label": "Troll Champion",
+      "score": {
+        "value": 20
+      },
+      "short_label": "Troll Champ"
+    },
+    {
+      "initials": {
+        "value": "KOZ"
+      },
+      "label": "Madness Champion",
+      "score": {
+        "value": 20000000
+      },
+      "short_label": "Madness Champ"
+    },
+    {
+      "counter": {
+        "value": 1
+      },
+      "initials": {
+        "value": "KOP"
+      },
+      "label": "King of the Realm #1",
+      "nth_time": {
+        "value": 1
+      },
+      "short_label": "King #1",
+      "timestamp": {
+        "value": "2024-01-17 14:48"
+      }
+    },
+    {
+      "counter": {
+        "value": 0
+      },
+      "initials": {
+        "value": "KOP"
+      },
+      "label": "King of the Realm #2",
+      "nth_time": {
+        "value": 0
+      },
+      "short_label": "King #2",
+      "timestamp": {
+        "value": "2024-01-17 14:48"
+      }
+    },
+    {
+      "counter": {
+        "value": 0
+      },
+      "initials": {
+        "value": "KOP"
+      },
+      "label": "King of the Realm #3",
+      "nth_time": {
+        "value": 0
+      },
+      "short_label": "King #3",
+      "timestamp": {
+        "value": "2024-01-17 14:48"
+      }
+    },
+    {
+      "counter": {
+        "value": 0
+      },
+      "initials": {
+        "value": "KOP"
+      },
+      "label": "King of the Realm #4",
+      "nth_time": {
+        "value": 0
+      },
+      "short_label": "King #4",
+      "timestamp": {
+        "value": "2024-01-17 14:48"
+      }
+    }
+  ]
+}

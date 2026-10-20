@@ -1,0 +1,55 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>pinbot</AssemblyName>
+    <RootNamespace>PinBot.Agent</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>0.0.1</Version>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <!-- a small background app: no background GC thread, no profile-guided re-JIT, and memory given back eagerly -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+    <PackageReference Include="OpenMcdf" Version="3.1.4" />
+    <PackageReference Include="System.Management" Version="10.0.13" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
+  </ItemGroup>
+
+  <!-- Pinball Memory Maps (ODbL 1.0 / DbCL 1.0), pinned git submodule. Built into pinbot.exe as resources "pbmm/<path>"
+       so the released agent is one file; also copied next to the exe in development builds (tests read the folder). -->
+  <ItemGroup>
+    <MapFile Include="..\..\vendor\pinball-memory-maps\index.json;..\..\vendor\pinball-memory-maps\LICENSE-*" LinkBase="maps" />
+    <MapFile Include="..\..\vendor\pinball-memory-maps\maps\**\*.map.json" LinkBase="maps\maps" />
+    <MapFile Include="..\..\vendor\pinball-memory-maps\platforms\*.json" LinkBase="maps\platforms" />
+    <None Include="@(MapFile)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
+    <EmbeddedResource Include="..\..\vendor\pinball-memory-maps\index.json" LogicalName="pbmm/index.json" />    <EmbeddedResource Include="..\..\vendor\pinball-memory-maps\maps\**\*.map.json" LogicalName="pbmm/maps/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\vendor\pinball-memory-maps\platforms\*.json" LogicalName="pbmm/platforms/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\NOTICE.md" LogicalName="NOTICE.md" />
+  </ItemGroup>
+
+  <!-- Release builds (publish.ps1) carry the community's update public key and a release number; without them
+       (development builds) the agent never updates itself. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="UpdatePublicKey" Value="$(UpdatePublicKey)" Condition="'$(UpdatePublicKey)' != ''" />
+    <AssemblyMetadata Include="UpdateVersion" Value="$(UpdateVersion)" Condition="'$(UpdateVersion)' != ''" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PinBot.Agent.Tests" />
+    <InternalsVisibleTo Include="PinBot.Server.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PinBot.Contracts\PinBot.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
+

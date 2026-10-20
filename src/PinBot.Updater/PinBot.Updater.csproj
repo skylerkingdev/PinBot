@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>pinbot-updater</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PinBot.Contracts\PinBot.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- set by the release workflow (/p:UpdatePublicKey=..., /p:UpdateRepo=owner/name); a build without a key never updates -->
+    <AssemblyMetadata Include="UpdatePublicKey" Value="$(UpdatePublicKey)" Condition="'$(UpdatePublicKey)' != ''" />
+    <AssemblyMetadata Include="UpdateRepo" Value="$(UpdateRepo)" Condition="'$(UpdateRepo)' != ''" />
+  </ItemGroup>
+
+</Project>

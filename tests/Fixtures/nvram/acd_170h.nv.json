@@ -1,0 +1,219 @@
+{
+  "_fileformat": 0.7,
+  "game_state": {
+    "current_ball": {
+      "label": "Ball",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "current_player": {
+      "label": "Player",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "player_count": {
+      "label": "Player Count",
+      "value": 1
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 631160
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      }
+    ]
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "SSR"
+      },
+      "label": "Grand Champion",
+      "score": {
+        "value": 75000000
+      }
+    },
+    {
+      "initials": {
+        "value": "LFS"
+      },
+      "label": "First Place",
+      "score": {
+        "value": 55000000
+      }
+    },
+    {
+      "initials": {
+        "value": "R B"
+      },
+      "label": "Second Place",
+      "score": {
+        "value": 40000000
+      }
+    },
+    {
+      "initials": {
+        "value": "J Y"
+      },
+      "label": "Third Place",
+      "score": {
+        "value": 30000000
+      }
+    },
+    {
+      "initials": {
+        "value": "M G"
+      },
+      "label": "Fourth Place",
+      "score": {
+        "value": 25000000
+      }
+    }
+  ],
+  "mode_champions": [
+    {
+      "counter": {
+        "value": 20
+      },
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Combo Champion"
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Back In Black Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "For Those About To Rock Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Hell Aint A Bad Place To Be Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Hells Bells Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Highway To Hell Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Let There Be Rock Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Rock N Roll Train Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Thunderstruck Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "T.N.T. Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "War Machine Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Whole Lotta Rosie Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "You Shook Me All Night Long Champion",
+      "score": {
+        "value": 7500000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Song Jackpot Champion",
+      "score": {
+        "value": 20000000
+      }
+    },
+    {
+      "initials": {
+        "value": "ABC"
+      },
+      "label": "Encore Champion",
+      "score": {
+        "value": 150000000
+      }
+    }
+  ]
+}

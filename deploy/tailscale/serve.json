@@ -1,0 +1,15 @@
+{
+  "TCP": { "443": { "HTTPS": true } },
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": {
+        "/healthz": { "Proxy": "http://server:8080/healthz" },
+        "/api/v1/pair/": { "Proxy": "http://server:8080/api/v1/pair/" },
+        "/api/v1/agent/": { "Proxy": "http://server:8080/api/v1/agent/" },
+        "/api/v1/discord/": { "Proxy": "http://server:8080/api/v1/discord/" },
+        "/download/": { "Proxy": "http://server:8080/download/" }
+      }
+    }
+  },
+  "AllowFunnel": { "${TS_CERT_DOMAIN}:443": true }
+}

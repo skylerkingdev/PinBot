@@ -1,0 +1,531 @@
+{
+  "_fileformat": 0.8,
+  "adjustments": {
+    "Adjustments": {
+      "01": {
+        "label": "Auto Replay %",
+        "value": 10
+      },
+      "02a": {
+        "label": "Replay Start",
+        "value": 1400000
+      },
+      "02b": {
+        "label": "Replay Level 1",
+        "value": 1400000
+      },
+      "03a": {
+        "label": "Replay Levels",
+        "value": 1
+      },
+      "03b": {
+        "label": "Replay Level 2",
+        "value": "Off"
+      },
+      "04b": {
+        "label": "Replay Level 3",
+        "value": "Off"
+      },
+      "05b": {
+        "label": "Replay Level 4",
+        "value": "Off"
+      },
+      "06": {
+        "label": "Replay Award",
+        "value": "Credit"
+      },
+      "07": {
+        "label": "Special Award",
+        "value": "Credit"
+      },
+      "08": {
+        "label": "Match Feature",
+        "value": "On"
+      },
+      "09": {
+        "label": "Balls Per Game",
+        "value": 3
+      },
+      "10": {
+        "label": "Tilt Warnings",
+        "value": 3
+      },
+      "11": {
+        "label": "Max Extra Balls",
+        "value": 4
+      },
+      "12": {
+        "label": "Max Credits",
+        "value": 30
+      },
+      "13": {
+        "label": "Highest Scores",
+        "value": "On"
+      },
+      "14": {
+        "label": "Backup High Score 1",
+        "value": 4000000
+      },
+      "15": {
+        "label": "Backup High Score 2",
+        "value": 3500000
+      },
+      "16": {
+        "label": "Backup High Score 3",
+        "value": 3000000
+      },
+      "17": {
+        "label": "Backup High Score 4",
+        "value": 2500000
+      },
+      "18": {
+        "label": "High Score 1 Credits",
+        "value": 3
+      },
+      "19": {
+        "label": "High Score 2 Credits",
+        "value": 1
+      },
+      "20": {
+        "label": "High Score 3 Credits",
+        "value": 1
+      },
+      "21": {
+        "label": "High Score 4 Credits",
+        "value": 1
+      },
+      "22": {
+        "label": "HSTD Reset Every",
+        "value": 6000
+      },
+      "23": {
+        "label": "Free Play",
+        "value": "No"
+      },
+      "24": {
+        "label": "Pricing",
+        "value": 1
+      },
+      "25": {
+        "label": "Left Units",
+        "value": 1
+      },
+      "26": {
+        "label": "Center Units",
+        "value": 4
+      },
+      "27": {
+        "label": "Right Units",
+        "value": 1
+      },
+      "28": {
+        "label": "Units/Credit",
+        "value": 1
+      },
+      "29": {
+        "label": "Units/Bonus",
+        "value": 0
+      },
+      "30": {
+        "label": "Minimum Units",
+        "value": 0
+      },
+      "31": {
+        "label": "Freeway Start",
+        "value": "3-ball 50K, 5-ball 25K"
+      },
+      "32": {
+        "label": "Freeway Memory",
+        "value": "Regular"
+      },
+      "33": {
+        "label": "Eject Hole Spots",
+        "value": "3-Ball Yes, 5-ball No"
+      },
+      "34": {
+        "label": "Ramp Spots",
+        "value": "Yes"
+      },
+      "35": {
+        "label": "Light Special",
+        "value": "3-Ball Reg, 5-ball Hard"
+      },
+      "36": {
+        "label": "Special Memory",
+        "value": "No"
+      },
+      "37": {
+        "label": "Police Light",
+        "value": "On"
+      },
+      "38": {
+        "label": "Kickback Memory",
+        "value": "Easy"
+      },
+      "39": {
+        "label": "Light Freeway",
+        "value": "Regular"
+      },
+      "40": {
+        "label": "Ramp Bonus Memory",
+        "value": "No"
+      },
+      "41": {
+        "label": "Extra Ball Memory",
+        "value": "Yes"
+      },
+      "42": {
+        "label": "Stoplight Targets",
+        "value": "Regular"
+      },
+      "43": {
+        "label": "Freeway Timer",
+        "value": "Regular"
+      },
+      "44": {
+        "label": "Siren Style",
+        "value": "USA"
+      },
+      "45": {
+        "label": "Attract Police Light",
+        "value": "Yes"
+      },
+      "46": {
+        "label": "Attract Starter",
+        "value": "Yes"
+      },
+      "47": {
+        "label": "Attract Sound",
+        "value": "Yes"
+      },
+      "48": {
+        "label": "Game Over Music",
+        "value": "Yes"
+      },
+      "49": {
+        "label": "Custom Message",
+        "value": "On"
+      },
+      "49a": {
+        "label": "Custom Msg Line 1",
+        "value": "RUN THE LIGHTo"
+      },
+      "49b": {
+        "label": "Custom Msg Line 2",
+        "value": "AND GET AWAYoo"
+      },
+      "49c": {
+        "label": "Custom Msg Line 3",
+        "value": "AT HIGH SPEE\\u00C4 "
+      },
+      "50": {
+        "label": "Switch Alarm Knocker",
+        "value": "Yes"
+      },
+      "51": {
+        "label": "Unused Adjustment",
+        "value": ""
+      },
+      "52": {
+        "label": "Unused Adjustment",
+        "value": 0
+      }
+    }
+  },
+  "audits": {
+    "Audits": {
+      "01": {
+        "label": "Left Coins",
+        "value": 0
+      },
+      "02": {
+        "label": "Center Coins",
+        "value": 7
+      },
+      "03": {
+        "label": "Right Coins",
+        "value": 3
+      },
+      "04": {
+        "label": "Paid Credits",
+        "value": 31
+      },
+      "05": {
+        "label": "Total Plays",
+        "value": 2
+      },
+      "06": {
+        "label": "Total Free",
+        "value": 0
+      },
+      "08": {
+        "label": "Replay Awards",
+        "value": 0
+      },
+      "10": {
+        "label": "Special Awards",
+        "value": 0
+      },
+      "12": {
+        "label": "Match Awards",
+        "value": 0
+      },
+      "13": {
+        "label": "HSTD Credits",
+        "value": 0
+      },
+      "15": {
+        "label": "Extra Balls",
+        "value": 0
+      },
+      "18": {
+        "label": "Minutes of Play",
+        "value": 0
+      },
+      "19": {
+        "label": "Balls Played",
+        "value": 0
+      },
+      "20": {
+        "label": "Replay 1 Awards",
+        "value": 0
+      },
+      "21": {
+        "label": "Replay 2 Awards",
+        "value": 0
+      },
+      "22": {
+        "label": "Replay 3 Awards",
+        "value": 0
+      },
+      "23": {
+        "label": "Replay 4 Awards",
+        "value": 0
+      },
+      "24": {
+        "label": "1 Player Games",
+        "value": 0
+      },
+      "25": {
+        "label": "2 Player Games",
+        "value": 0
+      },
+      "26": {
+        "label": "3 Player Games",
+        "value": 0
+      },
+      "27": {
+        "label": "4 Player Games",
+        "value": 0
+      },
+      "28": {
+        "label": "Burn in Cycles",
+        "value": 0
+      },
+      "29": {
+        "label": "Yellow Lit",
+        "value": 0
+      },
+      "30": {
+        "label": "Red Lit",
+        "value": 0
+      },
+      "31": {
+        "label": "Multiballs",
+        "value": 0
+      },
+      "32": {
+        "label": "Jackpot Won",
+        "value": 0
+      },
+      "33": {
+        "label": "Special Lit",
+        "value": 0
+      },
+      "34": {
+        "label": "Freeway E.B. Lit",
+        "value": 0
+      },
+      "35": {
+        "label": "Ramp Shot",
+        "value": 0
+      },
+      "36": {
+        "label": "Jackpot E.B. Lit",
+        "value": 0
+      },
+      "37": {
+        "label": "Kickback Fired",
+        "value": 1
+      },
+      "38": {
+        "label": "Attract Mode Cycles",
+        "value": 0
+      },
+      "39": {
+        "label": "HSTD Reset Counter",
+        "value": 5998
+      },
+      "40": {
+        "label": "Auto Replay Data 1",
+        "value": 0
+      },
+      "41": {
+        "label": "Auto Replay Data 2",
+        "value": 2
+      },
+      "42": {
+        "label": "Auto Replay Data 3",
+        "value": 0
+      },
+      "43": {
+        "label": "Auto Replay Data 4",
+        "value": 0
+      },
+      "44": {
+        "label": "Auto Replay Data 5",
+        "value": 0
+      }
+    }
+  },
+  "checksum8": [
+    {
+      "label": "Audits",
+      "value": "valid"
+    },
+    {
+      "label": "Credits",
+      "value": "valid"
+    },
+    {
+      "label": "Auto Replay Data",
+      "value": "valid"
+    }
+  ],
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "bonus": {
+      "label": "Bonus",
+      "value": "Bits encoding not implemented"
+    },
+    "bonusX": {
+      "label": "Bonus Multiplier",
+      "value": "Bits encoding not implemented"
+    },
+    "bonus_hold": {
+      "label": "Bonus Hold",
+      "value": "No"
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 29
+    },
+    "current_ball": {
+      "label": "Ball",
+      "value": "n/a"
+    },
+    "current_player": {
+      "label": "Current Player",
+      "value": 1
+    },
+    "extra_balls": {
+      "label": "Extra Balls",
+      "value": 3
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": true
+    },
+    "hideout_jackpot": {
+      "label": "Hideout Jackpot",
+      "value": 280000
+    },
+    "match": {
+      "label": "Match",
+      "value": 0
+    },
+    "max_credits": {
+      "label": "Maximum Credits",
+      "value": 30
+    },
+    "player_count": {
+      "label": "Player Count",
+      "value": 1
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 0
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      }
+    ],
+    "tilt_warnings": {
+      "label": "Tilt Warnings",
+      "value": 0
+    },
+    "tilted": {
+      "label": "Tilted",
+      "value": false
+    }
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "SSR"
+      },
+      "label": "First Place",
+      "score": {
+        "value": 4000000
+      },
+      "short_label": "1st"
+    },
+    {
+      "initials": {
+        "value": "LED"
+      },
+      "label": "Second Place",
+      "score": {
+        "value": 3500000
+      },
+      "short_label": "2nd"
+    },
+    {
+      "initials": {
+        "value": "ML "
+      },
+      "label": "Third Place",
+      "score": {
+        "value": 3000000
+      },
+      "short_label": "3rd"
+    },
+    {
+      "initials": {
+        "value": "JWA"
+      },
+      "label": "Fourth Place",
+      "score": {
+        "value": 2500000
+      },
+      "short_label": "4th"
+    }
+  ]
+}

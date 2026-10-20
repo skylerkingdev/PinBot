@@ -1,0 +1,321 @@
+{
+  "_fileformat": 0.8,
+  "adjustments": {
+    "Game Adjustments": {
+      "31": {
+        "label": "Game Adjust 1",
+        "value": 1
+      },
+      "32": {
+        "label": "Game Adjust 2",
+        "value": 0
+      },
+      "33": {
+        "label": "Game Adjust 3",
+        "value": 30
+      },
+      "34": {
+        "label": "Game Adjust 4",
+        "value": 0
+      },
+      "35": {
+        "label": "Game Adjust 5",
+        "value": 0
+      },
+      "36": {
+        "label": "Game Adjust 6",
+        "value": 0
+      },
+      "37": {
+        "label": "Game Adjust 7",
+        "value": 0
+      },
+      "38": {
+        "label": "Game Adjust 8",
+        "value": 0
+      },
+      "39": {
+        "label": "Game Adjust 9",
+        "value": 1
+      }
+    },
+    "Standard Adjustments": {
+      "13": {
+        "label": "Backup HSTD",
+        "value": 2500000
+      },
+      "14": {
+        "label": "Replay 1 Score",
+        "value": 1200000
+      },
+      "15": {
+        "label": "Replay 2 Score",
+        "value": 2500000
+      },
+      "16": {
+        "label": "Replay 3 Score",
+        "value": 0
+      },
+      "17": {
+        "label": "Replay 4 Score",
+        "value": 0
+      },
+      "18": {
+        "label": "Maximum Credits",
+        "value": 30
+      },
+      "19": {
+        "label": "Pricing Control",
+        "value": "1/1DM, 3/2DM, 10/5DM"
+      },
+      "20": {
+        "label": "Left Coin Slot Multiplier",
+        "value": 9
+      },
+      "21": {
+        "label": "Center Coin Slot Multiplier",
+        "value": 45
+      },
+      "22": {
+        "label": "Right Coin Slot Multiplier",
+        "value": 18
+      },
+      "23": {
+        "label": "Coin Units Required for Credit",
+        "value": 5
+      },
+      "24": {
+        "label": "Coin Units Bonus Point",
+        "value": 45
+      },
+      "25": {
+        "label": "Minimum Coin Units",
+        "value": 0
+      },
+      "26": {
+        "label": "Match",
+        "value": "On"
+      },
+      "27": {
+        "label": "Special Awards",
+        "value": "Credit"
+      },
+      "28": {
+        "label": "Replay Award",
+        "value": "Credit"
+      },
+      "29": {
+        "label": "Tilt Warnings",
+        "value": 3
+      },
+      "30": {
+        "label": "Number of Balls",
+        "value": 3
+      },
+      "40": {
+        "label": "HSTD Credits",
+        "value": 3
+      },
+      "41": {
+        "label": "Maximum Extra Balls",
+        "value": 4
+      }
+    }
+  },
+  "audits": {
+    "Game Audits": {
+      "42": {
+        "label": "Game Audit 1",
+        "value": 0
+      },
+      "43": {
+        "label": "Game Audit 2",
+        "value": 0
+      },
+      "44": {
+        "label": "Game Audit 3",
+        "value": 0
+      },
+      "45": {
+        "label": "Game Audit 4",
+        "value": 0
+      },
+      "46": {
+        "label": "Game Audit 5",
+        "value": 0
+      },
+      "47": {
+        "label": "Game Audit 6",
+        "value": 0
+      },
+      "48": {
+        "label": "Game Audit 7",
+        "value": 0
+      },
+      "49": {
+        "label": "Burn-In Cycles",
+        "value": 0
+      },
+      "99": {
+        "label": "CMOS Checksum",
+        "value": "valid"
+      }
+    },
+    "Standard Audits": {
+      "01": {
+        "label": "Coins, left chute",
+        "value": 0
+      },
+      "02": {
+        "label": "Coins, center chute",
+        "value": 3
+      },
+      "03": {
+        "label": "Coins, right chute",
+        "value": 0
+      },
+      "04": {
+        "label": "Total Paid Credits",
+        "value": 30
+      },
+      "05": {
+        "label": "Special Credits",
+        "value": 0
+      },
+      "06": {
+        "label": "Replay Score Credits",
+        "value": 0
+      },
+      "07": {
+        "label": "Match Credits",
+        "value": 0
+      },
+      "08": {
+        "label": "Total Credits",
+        "value": 1
+      },
+      "09": {
+        "label": "Total Extra Balls",
+        "value": 0
+      },
+      "10": {
+        "label": "Ball Time",
+        "units": "minutes",
+        "value": 0
+      },
+      "11": {
+        "label": "Total Balls Played",
+        "value": 0
+      },
+      "12": {
+        "label": "Current HSTD",
+        "value": 2500000
+      },
+      "13": {
+        "label": "HSTD Credits",
+        "value": 0
+      },
+      "14": {
+        "label": "Replay 1 Awarded",
+        "value": 0
+      },
+      "15": {
+        "label": "Replay 2 Awarded",
+        "value": 0
+      },
+      "16": {
+        "label": "Replay 3 Awarded",
+        "value": 0
+      },
+      "17": {
+        "label": "Replay 4 Awarded",
+        "value": 0
+      }
+    }
+  },
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "bonus_time": {
+      "label": "Bonus Time",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 29
+    },
+    "current_ball": {
+      "label": "Ball",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "current_player": {
+      "label": "Current Player",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "extra_balls": {
+      "label": "Extra Balls",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "max_credits": {
+      "label": "Maximum Credits",
+      "value": 30
+    },
+    "player_count": {
+      "label": "Players",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "playfield_valid": {
+      "label": "Playfield Valid",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      },
+      {
+        "label": "Player 2",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      },
+      {
+        "label": "Player 3",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      },
+      {
+        "label": "Player 4",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      }
+    ],
+    "self_test": {
+      "label": "Self Test",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "tilt_warnings": {
+      "label": "Tilt Warnings",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "tilted": {
+      "label": "Tilted",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    }
+  },
+  "high_scores": [
+    {
+      "label": "First Place",
+      "score": {
+        "value": 2500000
+      },
+      "short_label": "1st"
+    }
+  ]
+}

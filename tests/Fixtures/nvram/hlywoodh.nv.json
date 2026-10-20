@@ -1,0 +1,253 @@
+{
+  "_fileformat": 0.8,
+  "adjustments": {
+    "Standard Adjustments": {
+      "11": {
+        "label": "First High Score",
+        "value": 0
+      },
+      "12": {
+        "label": "Second High Score",
+        "value": 0
+      },
+      "13": {
+        "label": "Third High Score",
+        "value": 0
+      }
+    }
+  },
+  "audits": {
+    "Bookkeeping": {
+      "01": {
+        "label": "Left Chute Coins",
+        "value": 0
+      },
+      "02": {
+        "label": "Right Chute Coins",
+        "value": 32
+      },
+      "03": {
+        "label": "Center Chute Coins",
+        "value": 20
+      },
+      "04": {
+        "label": "Total Plays",
+        "value": 9
+      },
+      "05": {
+        "label": "Total Replays",
+        "value": 0
+      },
+      "07": {
+        "label": "Extra Balls",
+        "value": 0
+      },
+      "08": {
+        "label": "Tilts",
+        "value": 0
+      },
+      "09": {
+        "label": "Specials",
+        "value": 0
+      },
+      "10": {
+        "label": "Times HGTD Awarded",
+        "value": 0
+      },
+      "14": {
+        "label": "Highest Game To Date",
+        "value": 150090
+      },
+      "14a": {
+        "label": "HGTD Initials",
+        "value": "   "
+      },
+      "15": {
+        "label": "Game Time",
+        "value": 350
+      }
+    }
+  },
+  "dip_switches": {
+    "1-5": {
+      "label": "Left Coin Chute",
+      "value": "9 credits/coin"
+    },
+    "14": {
+      "label": "Left/Right Coin Chute Control",
+      "value": "separate"
+    },
+    "15-16": {
+      "label": "Maximum Credits",
+      "value": 10
+    },
+    "17-21": {
+      "label": "Center Coin Chute",
+      "value": "incentive: 1@2, 2@4"
+    },
+    "22": {
+      "label": "Playfield Special",
+      "value": "special"
+    },
+    "23-24": {
+      "label": "High Score Awards",
+      "value": "3 replays"
+    },
+    "25": {
+      "label": "Balls/Game",
+      "value": 3
+    },
+    "26": {
+      "label": "Match",
+      "value": "on"
+    },
+    "27": {
+      "label": "Replay Limit",
+      "value": 1
+    },
+    "28": {
+      "label": "Novelty",
+      "value": "score 500K instead of extra ball/special"
+    },
+    "29": {
+      "label": "Game Mode",
+      "value": "extra ball"
+    },
+    "30": {
+      "label": "3rd Coin Chute Credits",
+      "value": "add 9 credits"
+    },
+    "31": {
+      "label": "Game Setting #1",
+      "value": "on"
+    },
+    "32": {
+      "label": "Game Setting #2",
+      "value": "on"
+    },
+    "6": {
+      "label": "High Games To Date",
+      "value": "no effect"
+    },
+    "7": {
+      "label": "Attract Mode Sound",
+      "value": "off"
+    },
+    "8": {
+      "label": "Auto-Percentage Control",
+      "value": "Disabled (normal high score mode)"
+    },
+    "9-13": {
+      "label": "Right Coin Chute",
+      "value": "1 credits/5 coins"
+    }
+  },
+  "game_state": {
+    "ball_count": {
+      "label": "Balls Per Game",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 3
+    },
+    "current_ball": {
+      "label": "Ball",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "current_player": {
+      "label": "Current Player",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "extra_balls": {
+      "label": "Extra Balls",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "game_over": {
+      "label": "Game Over",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "max_credits": {
+      "label": "Maximum Credits",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "player_count": {
+      "label": "Player Count",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      },
+      {
+        "label": "Player 2",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      },
+      {
+        "label": "Player 3",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      },
+      {
+        "label": "Player 4",
+        "warning": "Failed to resolve: Value is stored outside the NVRAM"
+      }
+    ],
+    "tilted": {
+      "label": "Tilted",
+      "warning": "Failed to resolve: Value is stored outside the NVRAM"
+    }
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "   "
+      },
+      "label": "High Score #1",
+      "score": {
+        "value": 150090
+      },
+      "short_label": "1st"
+    },
+    {
+      "initials": {
+        "value": ""
+      },
+      "label": "High Score #2",
+      "score": {
+        "value": 0
+      },
+      "short_label": "2nd"
+    },
+    {
+      "initials": {
+        "value": ""
+      },
+      "label": "High Score #3",
+      "score": {
+        "value": 0
+      },
+      "short_label": "3rd"
+    },
+    {
+      "initials": {
+        "value": ""
+      },
+      "label": "High Score #4",
+      "score": {
+        "value": 0
+      },
+      "short_label": "4th"
+    },
+    {
+      "initials": {
+        "value": ""
+      },
+      "label": "High Score #5",
+      "score": {
+        "value": 0
+      },
+      "short_label": "5th"
+    }
+  ]
+}

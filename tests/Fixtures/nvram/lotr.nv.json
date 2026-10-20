@@ -1,0 +1,119 @@
+{
+  "_fileformat": 0.8,
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 5
+    },
+    "current_ball": {
+      "label": "Current Ball",
+      "value": 0
+    },
+    "current_player": {
+      "label": "Current Player",
+      "value": 0
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": true
+    },
+    "max_credits": {
+      "label": "Max Credits",
+      "value": 30
+    },
+    "player_count": {
+      "label": "Player Count",
+      "value": 0
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 711800
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      }
+    ],
+    "tilted": {
+      "label": "Tilted",
+      "value": false
+    }
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "KEF       "
+      },
+      "label": "Grand Champ",
+      "score": {
+        "value": 75000000
+      },
+      "short_label": "GC"
+    },
+    {
+      "initials": {
+        "value": "G G       "
+      },
+      "label": "#1",
+      "score": {
+        "value": 60000000
+      }
+    },
+    {
+      "initials": {
+        "value": "C G       "
+      },
+      "label": "#2",
+      "score": {
+        "value": 50000000
+      }
+    },
+    {
+      "initials": {
+        "value": "XAQ       "
+      },
+      "label": "#3",
+      "score": {
+        "value": 45000000
+      }
+    },
+    {
+      "initials": {
+        "value": "M G       "
+      },
+      "label": "#4",
+      "score": {
+        "value": 40000000
+      }
+    }
+  ],
+  "mode_champions": [
+    {
+      "initials": {
+        "value": "EYE"
+      },
+      "label": "Destroy Ring Champion",
+      "score": {
+        "units": "seconds",
+        "value": 600
+      }
+    }
+  ]
+}

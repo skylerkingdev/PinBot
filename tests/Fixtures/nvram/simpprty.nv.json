@@ -1,0 +1,107 @@
+{
+  "_fileformat": 0.8,
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 7
+    },
+    "current_ball": {
+      "label": "Current Ball",
+      "value": 1
+    },
+    "current_player": {
+      "label": "Current Player",
+      "value": 1
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": false
+    },
+    "max_credits": {
+      "label": "Max Credits",
+      "value": 30
+    },
+    "player_count": {
+      "label": "Player Count",
+      "value": 1
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 0
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      }
+    ],
+    "tilted": {
+      "label": "Tilted",
+      "value": false
+    }
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "KEF       "
+      },
+      "label": "Grand Champ",
+      "score": {
+        "value": 50000000
+      },
+      "short_label": "GC"
+    },
+    {
+      "initials": {
+        "value": "WES       "
+      },
+      "label": "#1",
+      "score": {
+        "value": 40000000
+      }
+    },
+    {
+      "initials": {
+        "value": "XAQ       "
+      },
+      "label": "#2",
+      "score": {
+        "value": 35000000
+      }
+    },
+    {
+      "initials": {
+        "value": "M G       "
+      },
+      "label": "#3",
+      "score": {
+        "value": 30000000
+      }
+    },
+    {
+      "initials": {
+        "value": "C G       "
+      },
+      "label": "#4",
+      "score": {
+        "value": 25000000
+      }
+    }
+  ]
+}

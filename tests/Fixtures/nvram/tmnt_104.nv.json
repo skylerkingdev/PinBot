@@ -1,0 +1,117 @@
+{
+  "_fileformat": 0.8,
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 17
+    },
+    "current_ball": {
+      "label": "Ball",
+      "value": 0
+    },
+    "current_player": {
+      "label": "Player",
+      "value": 0
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": true
+    },
+    "max_credits": {
+      "label": "Max Credits",
+      "value": 30
+    },
+    "player_count": {
+      "label": "Player Count",
+      "value": 0
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 0
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      }
+    ]
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "JEK"
+      },
+      "label": "First",
+      "score": {
+        "value": 11000000
+      },
+      "short_label": "#1"
+    },
+    {
+      "initials": {
+        "value": "R+N"
+      },
+      "label": "Second",
+      "score": {
+        "value": 10000000
+      },
+      "short_label": "#2"
+    },
+    {
+      "initials": {
+        "value": "KVD"
+      },
+      "label": "Third",
+      "score": {
+        "value": 9000000
+      },
+      "short_label": "#3"
+    },
+    {
+      "initials": {
+        "value": "BLS"
+      },
+      "label": "Fourth",
+      "score": {
+        "value": 8000000
+      },
+      "short_label": "#4"
+    },
+    {
+      "initials": {
+        "value": "NBW"
+      },
+      "label": "Fifth",
+      "score": {
+        "value": 7000000
+      },
+      "short_label": "#5"
+    },
+    {
+      "initials": {
+        "value": "P G"
+      },
+      "label": "Sixth",
+      "score": {
+        "value": 6000000
+      },
+      "short_label": "#6"
+    }
+  ]
+}

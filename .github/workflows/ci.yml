@@ -1,0 +1,37 @@
+# Build and test on every push and pull request. Windows, because the cabinet agent is a Windows program; the server
+# tests use the PostgreSQL that GitHub's Windows image ships (stopped by default; user postgres, password root).
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_call: # the release workflow runs the same checks before it builds anything
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true # the pinned memory maps are built into the agent
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start PostgreSQL
+        shell: pwsh
+        run: |
+          Get-Service -Name 'postgresql*' | Set-Service -StartupType Manual -PassThru | Start-Service
+          "PINBOT_TEST_PG=Host=localhost;Username=postgres;Password=root;Database=postgres" >> $env:GITHUB_ENV
+
+      - name: Build
+        run: dotnet build PinBot.sln -c Release -warnaserror
+
+      - name: Test
+        run: dotnet test PinBot.sln -c Release --no-build

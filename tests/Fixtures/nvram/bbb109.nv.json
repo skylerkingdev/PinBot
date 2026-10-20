@@ -1,0 +1,285 @@
+{
+  "_fileformat": 0.8,
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 0
+    },
+    "current_ball": {
+      "label": "Current Ball",
+      "value": 1
+    },
+    "current_player": {
+      "label": "Current Player",
+      "value": 2
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": true
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": false
+    },
+    "player_count": {
+      "label": "Player Count",
+      "value": 1
+    },
+    "recent_scores": [
+      {
+        "label": "Recent Game 1",
+        "value": 8360810
+      },
+      {
+        "label": "Recent Game 2",
+        "value": 0
+      },
+      {
+        "label": "Recent Game 3",
+        "value": 0
+      }
+    ],
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 50000000
+      },
+      {
+        "label": "Player 2",
+        "value": 25000000
+      }
+    ],
+    "tilted": {
+      "label": "Tilted",
+      "value": false
+    }
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "ROB"
+      },
+      "label": "High Score #1",
+      "score": {
+        "value": 500000000
+      },
+      "short_label": "HS1"
+    },
+    {
+      "initials": {
+        "value": "SPK"
+      },
+      "label": "High Score #2",
+      "score": {
+        "value": 438000000
+      },
+      "short_label": "HS2"
+    },
+    {
+      "initials": {
+        "value": "KRL"
+      },
+      "label": "High Score #3",
+      "score": {
+        "value": 374000000
+      },
+      "short_label": "HS3"
+    },
+    {
+      "initials": {
+        "value": "JRP"
+      },
+      "label": "High Score #4",
+      "score": {
+        "value": 312000000
+      },
+      "short_label": "HS4"
+    },
+    {
+      "initials": {
+        "value": "M2 "
+      },
+      "label": "High Score #5",
+      "score": {
+        "value": 250000000
+      },
+      "short_label": "HS5"
+    }
+  ],
+  "mode_champions": [
+    {
+      "initials": {
+        "value": "SPK"
+      },
+      "label": "Buyin Barflies #1",
+      "score": {
+        "value": 1000000000
+      },
+      "short_label": "BB1"
+    },
+    {
+      "initials": {
+        "value": "PFZ"
+      },
+      "label": "Buyin Barflies #2",
+      "score": {
+        "value": 875000000
+      },
+      "short_label": "BB2"
+    },
+    {
+      "initials": {
+        "value": "TON"
+      },
+      "label": "Buyin Barflies #3",
+      "score": {
+        "value": 750000000
+      },
+      "short_label": "BB3"
+    },
+    {
+      "initials": {
+        "value": "MNY"
+      },
+      "label": "Buyin Barflies #4",
+      "score": {
+        "value": 625000000
+      },
+      "short_label": "BB4"
+    },
+    {
+      "initials": {
+        "value": "BBB"
+      },
+      "label": "Buyin Barflies #5",
+      "score": {
+        "value": 500000000
+      },
+      "short_label": "BB5"
+    },
+    {
+      "initials": {
+        "value": "SPK"
+      },
+      "label": "Big Bang Regulars #1"
+    },
+    {
+      "initials": {
+        "value": "PFZ"
+      },
+      "label": "Big Bang Regulars #2"
+    },
+    {
+      "initials": {
+        "value": "TON"
+      },
+      "label": "Big Bang Regulars #3"
+    },
+    {
+      "initials": {
+        "value": "MNY"
+      },
+      "label": "Big Bang Regulars #4"
+    },
+    {
+      "initials": {
+        "value": "BBB"
+      },
+      "label": "Big Bang Regulars #5"
+    },
+    {
+      "initials": {
+        "value": "SPK"
+      },
+      "label": "Underground Elite #1",
+      "score": {
+        "value": 10
+      }
+    },
+    {
+      "initials": {
+        "value": "PFZ"
+      },
+      "label": "Underground Elite #2",
+      "score": {
+        "value": 9
+      }
+    },
+    {
+      "initials": {
+        "value": "TON"
+      },
+      "label": "Underground Elite #3",
+      "score": {
+        "value": 8
+      }
+    },
+    {
+      "initials": {
+        "value": "MNY"
+      },
+      "label": "Underground Elite #4",
+      "score": {
+        "value": 7
+      }
+    },
+    {
+      "initials": {
+        "value": "BBB"
+      },
+      "label": "Underground Elite #5",
+      "score": {
+        "value": 6
+      }
+    },
+    {
+      "initials": {
+        "value": "SPK"
+      },
+      "label": "Weak Kidney Club #1",
+      "score": {
+        "value": 40
+      }
+    },
+    {
+      "initials": {
+        "value": "PFZ"
+      },
+      "label": "Weak Kidney Club #2",
+      "score": {
+        "value": 35
+      }
+    },
+    {
+      "initials": {
+        "value": "TON"
+      },
+      "label": "Weak Kidney Club #3",
+      "score": {
+        "value": 30
+      }
+    },
+    {
+      "initials": {
+        "value": "MNY"
+      },
+      "label": "Weak Kidney Club #4",
+      "score": {
+        "value": 25
+      }
+    },
+    {
+      "initials": {
+        "value": "BBB"
+      },
+      "label": "Weak Kidney Club #5",
+      "score": {
+        "value": 20
+      }
+    }
+  ]
+}

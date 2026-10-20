@@ -1,0 +1,97 @@
+# PinBot server on a NAS / home server: server + PostgreSQL + Tailscale Funnel (public HTTPS, no open router ports)
+# + nightly database backups + the updater, which keeps the server on the signed releases published on GitHub.
+# Secrets go in .env next to this file (copy .env.example). Start everything with:  docker compose up -d
+name: pinbot
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pinbot
+      POSTGRES_USER: pinbot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pinbot -d pinbot"]
+      interval: 10s
+      retries: 10
+
+  # Checks GitHub every hour. A stable server (the default) installs a release once it has been out 48 hours; the
+  # maintainer's own server runs PINBOT_UPDATE_RING=early and installs it at once. Releases are verified with the
+  # release key built into the updater; a release the server does not start with is rolled back and skipped.
+  updater:
+    image: ghcr.io/skylerkingdev/pinbot-updater:latest
+    pull_policy: always # a Build in Container Manager always brings the newest updater, even if an old one is stuck
+    restart: unless-stopped
+    environment:
+      PINBOT_UPDATE_RING: ${PINBOT_UPDATE_RING:-stable}
+      PINBOT_UPDATE_TOKEN: ${PINBOT_UPDATE_TOKEN:-}
+      PINBOT_UPDATER_IMAGE: ghcr.io/skylerkingdev/pinbot-updater:latest
+      PINBOT_SERVER_IMAGE: ghcr.io/skylerkingdev/pinbot-server:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # it replaces the server (and itself) when a release is due
+      - ./:/deploy:ro                             # this folder: docker-compose.yml and .env, to recreate the server
+      - ./data/updater:/state                     # what it installed and refused (the server reads it for its notices)
+
+  server:
+    # pulled once by the first `docker compose up`; from then on the updater points this local tag at each verified
+    # release it installs (so restarting never fetches anything newer). Never built on this machine.
+    image: ghcr.io/skylerkingdev/pinbot-server:latest
+    pull_policy: missing
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__PinBot: Host=db;Database=pinbot;Username=pinbot;Password=${POSTGRES_PASSWORD}
+      PinBot__AdminToken: ${PINBOT_ADMIN_TOKEN:-} # optional admin API, off when empty (docs/SERVER.md)
+      PinBot__UpdaterState: /updater/updater.json
+      # Discord: leave empty to run without Discord. See docs/DISCORD-SETUP.md.
+      PinBot__PublicUrl: ${PINBOT_PUBLIC_URL:-}
+      PinBot__Discord__ApplicationId: ${DISCORD_APPLICATION_ID:-}
+      PinBot__Discord__PublicKey: ${DISCORD_PUBLIC_KEY:-}
+      PinBot__Discord__BotToken: ${DISCORD_BOT_TOKEN:-}
+      PinBot__Discord__GuildId: ${DISCORD_GUILD_ID:-}
+      PinBot__Discord__ChannelId: ${DISCORD_CHANNEL_ID:-}
+      PinBot__Discord__WeeklyChannelId: ${DISCORD_WEEKLY_CHANNEL_ID:-}
+    volumes:
+      - ./data/updater:/updater:ro
+    ports:
+      # LAN only (your router does not forward it): admin API and LAN cabinets use http://<NAS-IP>:5080
+      - "5080:8080"
+
+  tailscale:
+    image: tailscale/tailscale:stable
+    restart: unless-stopped
+    hostname: pinbot
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_USERSPACE: "true" # no kernel TUN device needed (Synology DSM)
+    volumes:
+      - ./data/tailscale:/var/lib/tailscale
+      - ./tailscale:/config:ro
+    depends_on:
+      - server
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    # one compressed dump per day, kept 14 days, written onto the NAS's own (snapshotted/backed-up) storage
+    entrypoint: >
+      sh -c 'while true; do
+               pg_dump -h db -U pinbot -Fc pinbot > /backups/pinbot-$$(date +%Y%m%d).dump.tmp &&
+               mv /backups/pinbot-$$(date +%Y%m%d).dump.tmp /backups/pinbot-$$(date +%Y%m%d).dump &&
+               find /backups -name "pinbot-*.dump" -mtime +14 -delete;
+               sleep 86400;
+             done'

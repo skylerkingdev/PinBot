@@ -1,0 +1,196 @@
+# Weekly check for new Pinball Memory Maps commits upstream. When there are any, bumps the vendor/pinball-memory-maps
+# submodule to upstream HEAD, regenerates src/PinBot.Server/rom-variants.json, updates the pinned commit in NOTICE.md and
+# runs the full test suite with the francisdb/pinmame-nvram reference corpus. Then:
+#   - an additive update (only new ROM ids; no map, platform or variant change for a ROM PinBot already reads) that
+#     passes every test with 0 corpus mismatches is committed to master and released (the release workflow, started
+#     here: pushes made by this workflow do not start other workflows);
+#   - anything else opens (or refreshes) one pull request on the bot/memory-maps branch for a person to review: changes
+#     to maps already in use have needed checksum and layout fixes before (SAM, Capcom, Gottlieb, WPC).
+name: Memory maps update
+
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write # push the bot/memory-maps branch, or master for an additive update
+  pull-requests: write
+  actions: write # start the release workflow after an automatic merge
+
+concurrency:
+  group: memory-maps
+  cancel-in-progress: false
+
+env:
+  BRANCH: bot/memory-maps
+  BASE: ${{ github.event.repository.default_branch || 'master' }}
+  UPSTREAM: https://github.com/tomlogic/pinball-memory-maps
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  update:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.BASE }} # always build the bump on top of the default branch, even for a manual run elsewhere
+
+      - name: Compare pinned maps with upstream
+        id: check
+        run: |
+          $old = git rev-parse HEAD:vendor/pinball-memory-maps
+          $new = ((git ls-remote $env:UPSTREAM HEAD) -split "`t")[0]
+          if (-not $new) { throw "could not read upstream HEAD" }
+          "old=$old" >> $env:GITHUB_OUTPUT
+          "new=$new" >> $env:GITHUB_OUTPUT
+          "changed=$([int]($old -ne $new))" >> $env:GITHUB_OUTPUT
+          if ($old -eq $new) {
+            "Pinned maps ($($old.Substring(0,7))) are upstream HEAD; nothing to do." >> $env:GITHUB_STEP_SUMMARY
+            # A bump PR still open now is stale (the pin was updated another way): close it.
+            $stale = gh pr list --head $env:BRANCH --state open --json number --jq '.[0].number'
+            if ($stale) { gh pr close $stale --delete-branch --comment "The pinned maps already match upstream HEAD ($old); closing." }
+          }
+
+      - name: Update submodule to upstream HEAD
+        if: steps.check.outputs.changed == '1'
+        run: |
+          git submodule update --init vendor/pinball-memory-maps # full clone: the PR body lists upstream commits
+          git -C vendor/pinball-memory-maps fetch --no-tags origin
+          git -C vendor/pinball-memory-maps checkout --detach ${{ steps.check.outputs.new }}
+          if ($LASTEXITCODE) { throw "checkout of upstream HEAD failed" }
+
+      - uses: actions/setup-dotnet@v5
+        if: steps.check.outputs.changed == '1'
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Regenerate rom-variants.json and NOTICE.md
+        if: steps.check.outputs.changed == '1'
+        run: |
+          Copy-Item src/PinBot.Server/rom-variants.json "$env:RUNNER_TEMP/rom-variants.old.json"
+          dotnet run --project tools/PinBot.Variants -c Release -- vendor/pinball-memory-maps src/PinBot.Server/rom-variants.json
+          if ($LASTEXITCODE) { throw "PinBot.Variants failed" }
+          $short = '${{ steps.check.outputs.new }}'.Substring(0, 7)
+          $notice = [IO.File]::ReadAllText("$PWD/NOTICE.md")
+          $pattern = '(?<=pinned at commit `)[0-9a-f]{7,40}(?=`)'
+          if ([regex]::Matches($notice, $pattern).Count -ne 1) { throw "NOTICE.md: expected exactly one 'pinned at commit' hash" }
+          [IO.File]::WriteAllText("$PWD/NOTICE.md", [regex]::Replace($notice, $pattern, $short))
+
+      - name: Summarise map changes
+        id: kind
+        if: steps.check.outputs.changed == '1'
+        run: |
+          ./.github/scripts/memory-maps-diff.ps1 -Repo vendor/pinball-memory-maps `
+            -Old ${{ steps.check.outputs.old }} -New ${{ steps.check.outputs.new }} `
+            -OldVariants "$env:RUNNER_TEMP/rom-variants.old.json" -NewVariants src/PinBot.Server/rom-variants.json `
+            -KindOut "$env:RUNNER_TEMP/kind.txt" `
+            | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/changes.md"
+          Get-Content "$env:RUNNER_TEMP/kind.txt" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.changed == '1'
+        with:
+          repository: francisdb/pinmame-nvram
+          path: pinmame-nvram # inside the workspace; only named files are committed below
+
+      - name: Start PostgreSQL
+        if: steps.check.outputs.changed == '1'
+        run: |
+          Get-Service -Name 'postgresql*' | Set-Service -StartupType Manual -PassThru | Start-Service
+          "PINBOT_TEST_PG=Host=localhost;Username=postgres;Password=root;Database=postgres" >> $env:GITHUB_ENV
+          "PINBOT_NVRAM_CORPUS=$env:GITHUB_WORKSPACE\pinmame-nvram\testdata" >> $env:GITHUB_ENV
+
+      - name: Build and test with the reference corpus
+        id: test
+        if: steps.check.outputs.changed == '1'
+        continue-on-error: true # a failing bump still gets a (draft) PR, so a person sees it
+        run: |
+          dotnet build PinBot.sln -c Release -warnaserror
+          if ($LASTEXITCODE) { throw "build failed" }
+          dotnet test PinBot.sln -c Release --no-build --logger trx --results-directory "$env:RUNNER_TEMP/results"
+          if ($LASTEXITCODE) { throw "tests failed" }
+
+      - name: Release an additive update, or open a pull request
+        if: steps.check.outputs.changed == '1'
+        run: |
+          $old = '${{ steps.check.outputs.old }}'; $new = '${{ steps.check.outputs.new }}'
+          $passed = '${{ steps.test.outcome }}' -eq 'success'
+          # The corpus test writes "N files, N entries compared, N mismatches" to its output; the .trx files keep it.
+          $trx = Get-ChildItem "$env:RUNNER_TEMP/results" -Filter *.trx -ErrorAction SilentlyContinue | Get-Content -Raw
+          $m = [regex]::Match("$trx", '(\d+) files, \d+ entries compared, (\d+) mismatches')
+          $corpus = $m.Value
+          if (-not $corpus) { $corpus = if ("$trx" -match 'PINBOT_NVRAM_CORPUS not set') { 'not run: corpus folder not found' } else { 'no result (build or test run failed before it)' } }
+          $corpusClean = $m.Success -and [int]$m.Groups[1].Value -gt 0 -and [int]$m.Groups[2].Value -eq 0
+          $additive = '${{ steps.kind.outputs.additive }}' -eq '1'
+          $addedCount = [int]'${{ steps.kind.outputs.added }}'
+          $corpusSha = git -C pinmame-nvram rev-parse --short HEAD
+          $run = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add vendor/pinball-memory-maps src/PinBot.Server/rom-variants.json NOTICE.md
+          $message = @('-m', "Update Pinball Memory Maps to $($new.Substring(0,7))", '-m', "Upstream $env:UPSTREAM/compare/$old...$new", '-m', "Reference corpus: $corpus")
+          # the line servers post in their info channel when this release reaches them
+          if ($addedCount -gt 0) { $message += @('-m', "Players: High scores of $addedCount more ROM$(if ($addedCount -ne 1) { 's' }) can now be read, so more tables can be used in competitions.") }
+          git commit @message
+          if ($LASTEXITCODE) { throw "commit failed" }
+
+          if ($passed -and $additive -and $corpusClean) {
+            # fast-forward only: if master moved during this run, the push fails and a pull request is opened instead
+            git push origin "HEAD:refs/heads/$env:BASE"
+            if ($LASTEXITCODE -eq 0) {
+              $stale = gh pr list --head $env:BRANCH --state open --json number --jq '.[0].number'
+              if ($stale) { gh pr close $stale --delete-branch --comment "Superseded: $($new.Substring(0,7)) only added maps, passed every test with 0 corpus mismatches, and was merged and released automatically ($run)." }
+              gh workflow run release.yml --ref $env:BASE
+              if ($LASTEXITCODE) { throw "merged, but starting the release workflow failed: start it by hand" }
+              "Merged $($new.Substring(0,7)) to $env:BASE automatically (additive, $corpus) and started the release." >> $env:GITHUB_STEP_SUMMARY
+              Get-Content -Raw "$env:RUNNER_TEMP/changes.md" >> $env:GITHUB_STEP_SUMMARY
+              $global:LASTEXITCODE = 0
+              return
+            }
+            Write-Warning "$env:BASE moved during this run: opening a pull request instead"
+          }
+
+          $body = @(
+            "Automated bump of the Pinball Memory Maps from ``$($old.Substring(0,7))`` to ``$($new.Substring(0,7))``, with ``rom-variants.json`` regenerated and the pin in ``NOTICE.md`` updated."
+            ''
+            "- **Build and tests:** $(if ($passed) { 'passed' } else { "**FAILED**, see the [run log]($run)" })"
+            "- **Reference corpus** (francisdb/pinmame-nvram ``$corpusSha``): $corpus"
+            ''
+            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms or variant pairs PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } else { "$env:BASE moved during the run" })."
+            ''
+            'Review before merging: read the upstream commits for checksum, layout, encoding or label changes on platforms PinBot decodes (SAM, Capcom, Gottlieb and WPC have needed fixes before); check that changed ROMs still decode on a real cabinet where you can; confirm the corpus line has 0 mismatches. CI does not run on pull requests opened by this workflow: close and reopen it, or push to the branch, to get the CI check. Merging it releases it (the release workflow runs on the push to master).'
+            ''
+            "Made by [this run]($run). The next weekly run rebuilds the branch on top of ``$env:BASE`` and refreshes this description."
+            ''
+            Get-Content -Raw "$env:RUNNER_TEMP/changes.md"
+          ) -join "`n"
+          if ($body.Length -gt 60000) { $body = $body.Substring(0, 60000) + "`n`n_(truncated)_" }
+          Set-Content -Encoding utf8 "$env:RUNNER_TEMP/body.md" $body
+          $body >> $env:GITHUB_STEP_SUMMARY
+
+          git switch -c $env:BRANCH
+          # Push only when the content differs from the branch already there, so an unchanged week adds no new commit.
+          git fetch --no-tags origin "+refs/heads/${env:BRANCH}:refs/remotes/origin/${env:BRANCH}" 2>$null
+          git diff --quiet "origin/$env:BRANCH" HEAD 2>$null
+          if ($LASTEXITCODE -ne 0) { git push --force origin "HEAD:refs/heads/$env:BRANCH"; if ($LASTEXITCODE) { throw "push failed" } }
+
+          $title = "Update Pinball Memory Maps to $($new.Substring(0,7))"
+          $pr = gh pr list --head $env:BRANCH --state open --json number --jq '.[0].number'
+          if ($pr) {
+            gh pr edit $pr --title $title --body-file "$env:RUNNER_TEMP/body.md"
+            if ($LASTEXITCODE) { throw "gh pr edit failed" }
+            # Draft while failing, ready for review once passing (a PR already in that state is not an error worth failing on).
+            if ($passed) { gh pr ready $pr } else { gh pr ready $pr --undo }
+          } else {
+            $draft = if ($passed) { @() } else { @('--draft') }
+            gh pr create --base $env:BASE --head $env:BRANCH --title $title --body-file "$env:RUNNER_TEMP/body.md" @draft
+            if ($LASTEXITCODE) { throw "gh pr create failed" }
+          }
+          if (-not $passed) { throw "bump is up as a draft PR, but its build or tests failed" } # so the run shows red too
+          $global:LASTEXITCODE = 0

@@ -1,0 +1,211 @@
+# Every push to master that changes what runs (server, agent, deploy files, maps) becomes a signed release, once the
+# same checks as CI pass:
+#   1. pinbot.exe, signed with the release key (the secret UPDATE_SIGNING_KEY in the protected "release" environment);
+#   2. the server image (with that pinbot.exe inside) and the updater image, for amd64 and arm64, on ghcr.io;
+#   3. a GitHub Release whose server-release.json names both images by digest, signed with the same key.
+# Servers' updaters install it (early ring at once, stable ring after 48 h); their VPins update from their server.
+# Delete a release on GitHub within 48 hours and stable servers never install it.
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - 'vendor/**'
+      - 'publish.ps1'
+      - 'tools/PinBot.Sign/**'
+  workflow_dispatch: # also started by the memory maps workflow after it merges an update
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/pinbot-server
+  UPDATER_IMAGE: ghcr.io/${{ github.repository_owner }}/pinbot-updater
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  agent:
+    needs: test
+    runs-on: windows-latest
+    environment: release
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      public-key: ${{ steps.build.outputs.public-key }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - id: version
+        shell: pwsh
+        run: "\"version=$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))\" >> $env:GITHUB_OUTPUT"
+
+      - id: build
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if (-not $env:UPDATE_SIGNING_KEY) { throw 'the release environment has no UPDATE_SIGNING_KEY secret' }
+          New-Item -ItemType Directory -Force keys | Out-Null
+          [IO.File]::WriteAllText("$PWD\keys\update-signing.pem", $env:UPDATE_SIGNING_KEY)
+          ./publish.ps1 -Version ${{ steps.version.outputs.version }} -RequireKey -SkipTests
+          "public-key=$((Get-Content keys\update-signing.pub -Raw).Trim())" >> $env:GITHUB_OUTPUT
+          Remove-Item keys -Recurse -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent
+          path: |
+            dist/pinbot.exe
+            dist/pinbot.json
+          if-no-files-found: error
+
+  images:
+    needs: agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      server: ${{ steps.server.outputs.digest }}
+      updater: ${{ steps.updater.outputs.digest }}
+    env:
+      RELEASE: ${{ needs.agent.outputs.version }}
+      DOCKER_BUILD_RECORD_UPLOAD: false # no build-record artifacts next to the release's own
+      # not VERSION: MSBuild would take it as the project version (a 14-digit number is not one) and restore fails
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the previous release's tag, for the notes
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent
+          path: deploy/agent
+
+      # Notes: every commit subject since the previous release (GitHub), and the lines starting "Players:" in those
+      # commits' messages (the info channel: news for players, not developers).
+      - name: Release notes
+        run: |
+          prev=$(git tag --list 'v2*' --sort=-version:refname | head -n1)
+          range=${prev:+$prev..}HEAD
+          git log $range --no-merges --format='- %s' | head -n 60 > "$RUNNER_TEMP/notes.md"
+          git log $range --no-merges --format='%B' | sed -n 's/^Players:[[:space:]]*//p' > "$RUNNER_TEMP/players.txt"
+          url="https://github.com/${{ github.repository }}/releases/tag/v$RELEASE"
+          jq -n --argjson version "$RELEASE" --arg url "$url" --rawfile p "$RUNNER_TEMP/players.txt" \
+            '{version: $version, notes: ($p | split("\n") | map(select(length > 0))), url: $url}' > deploy/agent/release.json
+          cat deploy/agent/release.json "$RUNNER_TEMP/notes.md"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          path: |
+            ${{ runner.temp }}/notes.md
+            ${{ runner.temp }}/players.txt
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: server
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.SERVER_IMAGE }}:${{ env.RELEASE }},${{ env.SERVER_IMAGE }}:latest
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - id: updater
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/updater.Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            UPDATE_PUBLIC_KEY=${{ needs.agent.outputs.public-key }}
+            UPDATE_REPO=${{ github.repository }}
+          tags: ${{ env.UPDATER_IMAGE }}:${{ env.RELEASE }},${{ env.UPDATER_IMAGE }}:latest
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  publish:
+    needs: [agent, images]
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE: ${{ needs.agent.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent
+          path: ${{ runner.temp }}/artifacts/agent
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: notes
+          path: ${{ runner.temp }}/artifacts/notes
+
+      - name: Sign the server release
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          dotnet build tools/PinBot.Sign -c Release -o "$RUNNER_TEMP/signtool" --nologo
+          sign="$RUNNER_TEMP/signtool/PinBot.Sign.dll"
+          mkdir -p keys
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > keys/update-signing.pem
+          dotnet "$sign" key keys --existing
+          echo
+          dotnet "$sign" server keys "$RELEASE" \
+            "$SERVER_IMAGE@${{ needs.images.outputs.server }}" "$UPDATER_IMAGE@${{ needs.images.outputs.updater }}" \
+            "$RUNNER_TEMP/artifacts/notes/players.txt" "$RUNNER_TEMP/server-release.json"
+          rm -rf keys
+          cat "$RUNNER_TEMP/server-release.json"
+
+      # what a new community downloads to set up a server: no sources, no build, no keys (docs/DEPLOY-NAS.md)
+      - name: Server setup package
+        run: |
+          mkdir -p "$RUNNER_TEMP/pkg/deploy/tailscale"
+          cp deploy/docker-compose.yml deploy/.env.example deploy/make-env.ps1 "$RUNNER_TEMP/pkg/deploy/"
+          cp deploy/tailscale/serve.json "$RUNNER_TEMP/pkg/deploy/tailscale/"
+          cp docs/DEPLOY-NAS.md docs/DISCORD-SETUP.md "$RUNNER_TEMP/pkg/"
+          (cd "$RUNNER_TEMP/pkg" && zip -qr "$RUNNER_TEMP/pinbot-deploy.zip" .)
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          when=$(date -u -d "${RELEASE:0:8} ${RELEASE:8:2}:${RELEASE:10:2}" '+%-d %b %Y, %H:%M UTC')
+          gh release create "v$RELEASE" --target "$GITHUB_SHA" --title "PinBot $when" \
+            --notes-file "$RUNNER_TEMP/artifacts/notes/notes.md" \
+            "$RUNNER_TEMP/artifacts/agent/pinbot.exe" "$RUNNER_TEMP/artifacts/agent/pinbot.json" "$RUNNER_TEMP/server-release.json" \
+            "$RUNNER_TEMP/pinbot-deploy.zip"
