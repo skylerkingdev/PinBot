@@ -17,7 +17,8 @@ Your own high scores are backed up before a competition and restored byte-for-by
 ([how](docs/NVRAM-SAFETY.md)). PinBot uses about 20 MB of memory and sleeps while a table runs.
 
 A VPin is any Windows PC with Visual Pinball X: desktop, laptop or cabinet. PinBot works with ROM-based tables.
-The server runs in Docker, at home, for free.
+The PinBot server runs in Docker and is hosting-agnostic. Self-host it on your own hardware with no hosting fees, or
+deploy it to a compatible cloud provider.
 
 ## Setup
 
