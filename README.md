@@ -1,6 +1,6 @@
 # PinBot
 
-High-score competitions for virtual pinball, run from Discord.
+Automated virtual pinball high-score competitions for your Discord community.
 
 Turn on your VPin and play. If a competition is running on that game, your score shows up on the Discord
 leaderboard. Nobody signs up or joins: PinBot reads the high scores from the game itself and matches your initials
