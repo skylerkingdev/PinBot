@@ -67,14 +67,14 @@ About 45 minutes, once:
 - **Admins:** [Run the PinBot server](docs/DEPLOY-NAS.md), [Connect it to Discord](docs/DISCORD-SETUP.md),
   [Security](SECURITY.md)
 - **Developers:** [Development](docs/DEVELOPMENT.md), [Server reference](docs/SERVER.md),
-  [Code signing policy](docs/CODE-SIGNING.md)
+  [How releases are signed](docs/CODE-SIGNING.md)
 
-## Code signing policy
+## Release signing
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org). Committers, reviewers and approvers:
-[skylerkingdev](https://github.com/skylerkingdev). `pinbot.exe` sends data only to the PinBot server it was paired
-with. Details: [CODE-SIGNING.md](docs/CODE-SIGNING.md).
+Every release is built here by GitHub Actions and signed with the project's release key; servers and VPins install an
+update only when its signature matches. `pinbot.exe` is not signed with a Windows code-signing certificate, which is why
+Windows warns the first time you run it. It sends data only to the PinBot server it was paired with. Details:
+[CODE-SIGNING.md](docs/CODE-SIGNING.md).
 
 ## Development
 

@@ -1,31 +1,36 @@
-# Code signing policy
+# How releases are signed
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
+For developers and anyone checking what they install.
 
-For developers and anyone checking what they install. Once the SignPath Foundation application is approved, every
-released `pinbot.exe` is Authenticode-signed and Windows shows SignPath Foundation as its publisher; until then releases
-are not Windows-signed (they are always signed for auto-update, see below). Only `pinbot.exe` built from
-this repository is signed; the server runs in Docker and is not.
+Every release is built from this repository by GitHub Actions and signed with the project's own release key. PinBot
+servers and VPins install an update only when its signature matches the key built into the copy they already have, so
+nobody else (not even someone who takes over the download server) can push an update to them.
+
+`pinbot.exe` is **not signed with a Windows code-signing certificate**. That's why Windows warns the first time you run
+it (*unknown publisher* or *Windows protected your PC*): choose **More info → Run anyway**. Updates after that install
+themselves without a warning. The server runs in Docker and is not Windows-signed either.
 
 ## How a release is signed
 
-1. A push to `master` starts the release workflow (`.github/workflows/release.yml`). GitHub-hosted runners build
-   `pinbot.exe` from this repository's sources with `publish.ps1`.
-2. The workflow sends the unsigned `pinbot.exe` to SignPath. A maintainer approves the signing request by hand; nothing
-   is signed without that approval.
-3. The workflow checks the Authenticode signature, then writes the update manifest (`pinbot.json`) for the signed
-   file with the project's own release key. VPins install a new `pinbot.exe` only when that manifest's signature matches
-   the key built into the copy they have (see [SERVER.md](SERVER.md#releases-and-vpin-auto-update)).
-4. The signed `pinbot.exe` is published as a GitHub Release.
+1. A push to `master` starts the release workflow (`.github/workflows/release.yml`), after the same tests as CI pass.
+   GitHub-hosted runners build `pinbot.exe` and the server images from this repository's sources. No secret is present
+   while anything builds: the builds get only the committed public key (`keys/update-signing.pub`).
+2. The workflow writes the update manifest for `pinbot.exe` (`pinbot.json`: its SHA-256 and size) and the server
+   release description (`server-release.json`: both images by digest), and signs them with the release key. The key is
+   a secret of the protected `release` environment, only on `master`, and exists only during those two steps, which
+   check it against the committed public key.
+3. Everything is published as a GitHub Release. VPins update from their server; servers' updaters install the release
+   (see [SERVER.md](SERVER.md#releases-and-vpin-auto-update)).
+
+To check a download yourself: its SHA-256 is in the release's `pinbot.json`.
 
 ## Team
 
 - Committers and reviewers: [skylerkingdev](https://github.com/skylerkingdev)
-- Approvers: [skylerkingdev](https://github.com/skylerkingdev)
+- Release key holder: [skylerkingdev](https://github.com/skylerkingdev)
 
 Changes from anyone else come as pull requests and are reviewed by a committer before they are merged. Everyone on the
-team uses multi-factor authentication for GitHub and SignPath.
+team uses multi-factor authentication for GitHub.
 
 ## Privacy
 
@@ -37,7 +42,12 @@ Unpairing or uninstalling ([VPIN.md](VPIN.md)) stops it.
 
 The server then posts competitions and results to your Discord server; see [SERVER.md](SERVER.md).
 
-## SignPath setup (maintainers)
+## Windows signing (optional, maintainers)
+
+The release workflow can also Authenticode-sign `pinbot.exe` through [SignPath](https://about.signpath.io), before
+the update manifest is written. It is off: it runs only when the `release` environment has the secrets
+`SIGNPATH_API_TOKEN` (a SignPath CI user with submitter rights) and `SIGNPATH_ORGANIZATION_ID`, with project slug
+`PinBot` and signing policy slug `release-signing`. A maintainer then approves each release in SignPath.
 
 Artifact configuration (the workflow uploads `pinbot.exe` with `actions/upload-artifact`, which zips it):
 
@@ -54,7 +64,3 @@ Artifact configuration (the workflow uploads `pinbot.exe` with `actions/upload-a
 
 `product-version` is the agent's `<Version>` (`src/PinBot.Agent/PinBot.Agent.csproj`), the same in every build; the
 release number is separate. Change both together.
-
-The workflow expects project slug `PinBot` and signing policy slug `release-signing`, and two secrets in the `release`
-environment: `SIGNPATH_API_TOKEN` (a SignPath CI user with submitter rights) and `SIGNPATH_ORGANIZATION_ID`. Without
-the token, releases still ship, unsigned by Authenticode.
