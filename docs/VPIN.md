@@ -54,6 +54,29 @@ Running a newer `pinbot.exe` by hand replaces it.
 
 A ROM is **unsupported** when no memory map exists for that exact revision. It is listed, never guessed.
 
+### Hardware families proven in real competitions
+
+Each family below has run a full competition on a real VPin: the competition file was prepared, the game's scores
+counted, and the player's own high scores were put back afterwards.
+
+| Hardware family | Proven with |
+|---|---|
+| Williams WPC | Attack from Mars, Twilight Zone, Cirqus Voltaire |
+| Williams System 11 | Jokerz!, High Speed |
+| Data East | Time Machine, Lethal Weapon 3, Baywatch |
+| Stern SAM | AC/DC, Transformers, Star Trek |
+| Stern and Sega Whitestar | Lord of the Rings, Starship Troopers |
+| Gottlieb System 3 | Street Fighter II |
+| Gottlieb System 80B | Genesis |
+| Capcom | Big Bang Bar |
+
+Other ROMs with a memory map also work. If a ROM ever wipes its high-score table on a competition file, PinBot stops
+offering that ROM on that VPin, puts the player's own scores back, and keeps the files needed to fix it (see
+`pinbot status`).
+
+Cirqus Voltaire only asks for initials once a score beats its 5th place, which on the factory table is 30,000,000. A
+competition file starts from a low ladder, so it asks like any other table.
+
 ## Files
 
 Everything lives in `%LOCALAPPDATA%\PinBot` (set `PINBOT_HOME` to use another folder):
