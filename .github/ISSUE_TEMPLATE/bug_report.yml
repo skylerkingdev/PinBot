@@ -1,0 +1,52 @@
+name: Bug report
+description: Something PinBot did wrong, on a VPin, on the server or in Discord
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems: please don't use this form, see **Security → Report a vulnerability**.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what PinBot did instead.
+      placeholder: "I played Attack from Mars during a competition and my score did not show on the leaderboard."
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - On a VPin (pinbot.exe, high scores, NVRAM)
+        - In Discord (commands, leaderboards, notices)
+        - The server (setup, updates, Docker)
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: table
+    attributes:
+      label: Table and ROM
+      description: If a table is involved. The ROM is shown by `pinbot scan`, e.g. afm_113b.
+      placeholder: "Attack from Mars, afm_113b"
+  - type: input
+    id: release
+    attributes:
+      label: Release
+      description: "`pinbot status` shows the VPin's; `/pinbot status` in Discord shows each VPin's."
+      placeholder: "20261021004511"
+  - type: textarea
+    id: report
+    attributes:
+      label: PinBot report
+      description: |
+        For anything on a VPin, run `pinbot report` there and attach the zip it puts on the desktop (drag it in here).
+        It holds logs, high scores and PinBot's state, never your server credential. For the server, paste the last
+        lines of the `pinbot-server-1` or `pinbot-updater-1` container log.
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: When it started, whether it happens every time, screenshots.
