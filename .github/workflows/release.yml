@@ -115,6 +115,8 @@ jobs:
           New-Item -ItemType Directory -Force keys | Out-Null
           [IO.File]::WriteAllText("$PWD\keys\update-signing.pem", $env:UPDATE_SIGNING_KEY)
           try {
+            dotnet dist\signtool\PinBot.Sign.dll key keys --existing | Out-Null # writes update-signing.pub, which sign checks against
+            if ($LASTEXITCODE -ne 0) { throw 'reading the release key failed' }
             dotnet dist\signtool\PinBot.Sign.dll sign keys dist\pinbot.exe ${{ steps.version.outputs.version }} dist\pinbot.json
             if ($LASTEXITCODE -ne 0) { throw 'signing the release failed' }
           } finally { Remove-Item keys -Recurse -Force }
