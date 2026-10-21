@@ -98,11 +98,15 @@ public sealed class AgentSync(HttpClient http, Outbox outbox)
         r.EnsureSuccessStatusCode();
     }
 
-    /// <summary>Server competitions mapped onto this cabinet's actual NVRAM files.</summary>
+    /// <summary>The newest agent release the server offered at the last <see cref="PullCompetitionsAsync"/> (0: none).</summary>
+    public long LatestRelease { get; private set; }
+
+    /// <summary>Server competitions mapped onto this VPin's actual NVRAM files.</summary>
     public async Task<List<LocalCompetition>> PullCompetitionsAsync(IReadOnlyList<TableInfo> tables, CancellationToken ct = default)
     {
         var resp = await http.GetFromJsonAsync<AgentCompetitionsResponse>("api/v1/agent/competitions", ct)
                    ?? throw new InvalidDataException("empty competitions response");
+        LatestRelease = resp.LatestRelease;
         var skew = DateTime.UtcNow - resp.ServerTimeUtc;
         if (Math.Abs(skew.TotalMinutes) > 2)
             Log.Warn($"this PC's clock differs from the server's by {skew.TotalMinutes:0} min; deadlines are judged by the server clock");

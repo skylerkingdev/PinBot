@@ -12,7 +12,7 @@ public class ReleaseTests
     static readonly DateTime Now = new(2026, 10, 20, 12, 0, 0, DateTimeKind.Utc);
 
     static Published Rel(long version, double hoursAgo) =>
-        new(new ServerRelease(version, $"ghcr.io/x/pinbot-server@sha256:{version}", "ghcr.io/x/pinbot-updater@sha256:u", [], "sig"), Now.AddHours(-hoursAgo));
+        new(version, Now.AddHours(-hoursAgo), $"https://api.github.com/assets/{version}");
 
     [Fact]
     public void A_server_release_is_only_valid_for_the_images_it_names()
@@ -33,8 +33,8 @@ public class ReleaseTests
     {
         var releases = new[] { Rel(1, 72), Rel(2, 50), Rel(3, 10) };
         var delay = TimeSpan.FromHours(48);
-        Assert.Equal(3, Ring.Choose(releases, early: true, delay, Now, current: 1, [])!.Release.Version);
-        Assert.Equal(2, Ring.Choose(releases, early: false, delay, Now, current: 1, [])!.Release.Version);
+        Assert.Equal(3, Ring.Choose(releases, early: true, delay, Now, current: 1, [])!.Version);
+        Assert.Equal(2, Ring.Choose(releases, early: false, delay, Now, current: 1, [])!.Version);
         Assert.Null(Ring.Choose(releases, early: false, delay, Now, current: 2, []));   // 3 is too new yet
         Assert.Null(Ring.Choose(releases, early: true, delay, Now, current: 3, []));    // nothing newer
         Assert.Null(Ring.Choose([Rel(1, 72)], early: true, delay, Now, current: 2, [])); // never a downgrade
@@ -45,16 +45,60 @@ public class ReleaseTests
     {
         var delay = TimeSpan.FromHours(48);
         // deleted on GitHub within 48 h: no longer listed, so stable servers simply never see it
-        Assert.Equal(1, Ring.Choose([Rel(1, 72)], early: false, delay, Now, current: 0, [])!.Release.Version);
+        Assert.Equal(1, Ring.Choose([Rel(1, 72)], early: false, delay, Now, current: 0, [])!.Version);
         var refused = new[] { new Refused(2, "did not start", Now) };
-        Assert.Equal(1, Ring.Choose([Rel(1, 72), Rel(2, 60)], early: false, delay, Now, current: 0, refused)!.Release.Version);
+        Assert.Equal(1, Ring.Choose([Rel(1, 72), Rel(2, 60)], early: false, delay, Now, current: 0, refused)!.Version);
         Assert.Null(Ring.Choose([Rel(1, 72), Rel(2, 60)], early: false, delay, Now, current: 1, refused));
     }
 
     [Fact]
     public void A_new_stable_server_starts_with_the_newest_release_rather_than_nothing()
     {
-        Assert.Equal(5, Ring.Choose([Rel(5, 1)], early: false, TimeSpan.FromHours(48), Now, current: 0, [])!.Release.Version);
+        Assert.Equal(5, Ring.Choose([Rel(5, 1)], early: false, TimeSpan.FromHours(48), Now, current: 0, [])!.Version);
+    }
+
+    [Theory]
+    [InlineData("v20261021004511", 20261021004511L)]
+    [InlineData("20261021004511", null)]   // no v
+    [InlineData("v2026102100451", null)]   // 13 digits
+    [InlineData("v1.4", null)]
+    [InlineData(null, null)]
+    public void Release_numbers_come_from_the_tag(string? tag, long? version) => Assert.Equal(version, Ring.VersionOfTag(tag));
+
+    [Fact]
+    public void A_missing_refused_list_counts_as_empty() =>
+        Assert.Equal(1, Ring.Choose([Rel(1, 72)], early: false, TimeSpan.FromHours(48), Now, current: 0, refused: null)!.Version);
+
+    [Fact]
+    public void A_damaged_state_file_falls_back_to_the_copy_from_before_the_last_save()
+    {
+        var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "pinbot-updater-state", Guid.NewGuid().ToString("N")[..8])).FullName;
+        var s = UpdaterState.Load(dir);
+        s.Install(20261020000000);
+        s.BeginSwap(20261021000000, "sha256:old");   // the .bak now holds the installed release
+        File.WriteAllText(Path.Combine(dir, "updater.json"), "{ half a fi"); // power cut mid-write
+        var back = UpdaterState.Load(dir);
+        Assert.Equal(20261020000000, back.Installed);
+        Assert.Null(back.Pending);
+        Assert.NotNull(back.Refused);
+
+        File.WriteAllText(Path.Combine(dir, "updater.json"), """{"installed":5,"refused":null,"failures":null}""");
+        var nulls = UpdaterState.Load(dir);
+        Assert.Empty(nulls.Refused);
+        Assert.Equal(1, nulls.CountFailure(9));
+    }
+
+    [Fact]
+    public void A_release_is_refused_once_and_failures_are_counted_per_release()
+    {
+        var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "pinbot-updater-state", Guid.NewGuid().ToString("N")[..8])).FullName;
+        var s = UpdaterState.Load(dir);
+        Assert.Equal(1, s.CountFailure(7));
+        Assert.Equal(2, s.CountFailure(7));
+        s.Refuse(7, "did not start");
+        s.Refuse(7, "did not start");
+        Assert.Single(UpdaterState.Load(dir).Refused);
+        Assert.Empty(UpdaterState.Load(dir).Failures);
     }
 
     [Fact]

@@ -1,0 +1,15 @@
+# What image builds may see: only the sources they COPY (src/, deploy/agent/). Never the history, keys or build output.
+.git
+.github
+.claude
+keys
+dist
+tests
+tools
+vendor
+docs
+**/bin
+**/obj
+deploy/.env
+deploy/data
+deploy/backups

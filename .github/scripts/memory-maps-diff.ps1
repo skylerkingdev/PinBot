@@ -81,7 +81,11 @@ if ($NewVariants) {
     $variantsTouchOld = $pairsRemoved.Count -gt 0 -or @($pairsAdded | Where-Object { $oldIndex.ContainsKey($_) -or $oldIndex.ContainsKey($nv[$_]) }).Count -gt 0
 }
 
+# the maps' licence files are built into pinbot.exe and shipped: a change to them is for a person to read
+$licences = @(Invoke-Git diff --name-only $Old $New -- 'LICENSE*')
+if ($licences.Count -gt 0) { Section 'Licence files changed (never merged automatically)' $licences }
+
 if ($KindOut) {
-    $additive = $changed.Count -eq 0 -and $removed.Count -eq 0 -and $platforms.Count -eq 0 -and -not $variantsTouchOld
+    $additive = $changed.Count -eq 0 -and $removed.Count -eq 0 -and $platforms.Count -eq 0 -and -not $variantsTouchOld -and $licences.Count -eq 0
     Set-Content -Encoding ascii $KindOut @("additive=$([int]$additive)", "added=$($added.Count)")
 }

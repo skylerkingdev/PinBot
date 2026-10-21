@@ -188,17 +188,35 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
     }
 
     // Run by a running PinBot that downloaded and verified this newer release: take over without any window or prompt.
+    // The running watcher was already told to stop (it finishes its current step first), so from here on this process is
+    // responsible for a watcher running again: whatever fails, it never leaves the VPin without one.
     public int InstallUpdate()
     {
-        if (!Setup.StopRunning(TimeSpan.FromSeconds(60)))
+        if (!Setup.StopRunning(TimeSpan.FromMinutes(5)))
         {
-            Log.Error("[update] the running PinBot did not stop; it keeps running and tries again later");
+            Log.Error("[update] the running PinBot did not stop within 5 minutes; it keeps running and tries again later");
             return 1;
         }
-        Setup.Install();
-        Setup.Start();
-        Log.Good($"[update] now running release {PinBot.Agent.Sync.AutoUpdate.Version}");
-        return 0;
+        try
+        {
+            Setup.Install();
+            Setup.Start();
+            Log.Good($"[update] now running release {PinBot.Agent.Sync.AutoUpdate.Version}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            // could not replace the installed copy: run the one already installed (or this one) rather than nothing
+            Log.Error($"[update] installing release {PinBot.Agent.Sync.AutoUpdate.Version} failed: {ex.Message}");
+            var exe = File.Exists(Setup.InstalledExe) ? Setup.InstalledExe : Environment.ProcessPath!;
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "watch --minimized --after-crash")
+                    { UseShellExecute = true, WindowStyle = System.Diagnostics.ProcessWindowStyle.Minimized })?.Dispose();
+            }
+            catch (Exception again) { Log.Error($"[update] starting PinBot again failed too: {again.Message}"); }
+            return 1;
+        }
     }
 
     public int Status()

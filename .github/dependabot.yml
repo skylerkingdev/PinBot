@@ -1,0 +1,24 @@
+# Keeps the pinned versions fresh: GitHub Actions are pinned by commit and base images by digest, so nothing moves by
+# itself, and these monthly pull requests bring the updates (with CI) for a person to merge. Security fixes for NuGet
+# packages come separately, as soon as one is published (Dependabot security updates).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directories: [/deploy]
+    schedule:
+      interval: monthly
+    ignore:
+      # the docker CLI copied into the updater: a new major must be tried against Synology's Docker first
+      - dependency-name: docker
+        update-types: [version-update:semver-major]
+    groups:
+      base-images:
+        patterns: ['*']

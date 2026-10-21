@@ -29,21 +29,41 @@ public sealed record RefusedRelease(long Version, string Reason, DateTime AtUtc)
 /// </summary>
 public static class ReleaseNotices
 {
-    public static async Task<IReadOnlyList<JsonObject>> DueAsync(NpgsqlConnection conn, ReleaseInfo? running, IReadOnlyList<RefusedRelease> refused)
-    {
-        var notices = new List<JsonObject>();
-        if (running is null) return notices; // a development build: nothing to announce
-        var announced = long.TryParse(await Settings.GetAsync(conn, Settings.ReleaseAnnounced), out var a) ? a : (long?)null;
-        if (announced is null) { } // first start with notices: remember silently
-        else if (running.Version > announced) notices.Add(Updated(running));
-        else if (running.Version < announced) notices.Add(WentBack(running.Version, announced.Value));
-        if (announced != running.Version) await Settings.SetAsync(conn, Settings.ReleaseAnnounced, running.Version.ToString(CultureInfo.InvariantCulture));
+    /// <summary>A notice to post and how to remember it was posted (run only after the post succeeded).</summary>
+    public sealed record Due(JsonObject? Message, Func<NpgsqlConnection, Task> Remember);
 
-        var skippedUpTo = long.TryParse(await Settings.GetAsync(conn, Settings.ReleaseSkipAnnounced), out var s) ? s : 0;
-        var newlySkipped = refused.Where(r => r.Version > skippedUpTo && r.Version > running.Version).OrderBy(r => r.Version).ToList();
-        if (announced is not null) notices.AddRange(newlySkipped.Select(r => Skipped(r, running.Version)));
-        if (newlySkipped.Count > 0) await Settings.SetAsync(conn, Settings.ReleaseSkipAnnounced, newlySkipped[^1].Version.ToString(CultureInfo.InvariantCulture));
-        return notices;
+    /// <summary>
+    /// What to tell the info channel now. Each notice is remembered on its own, right after it is posted, so a failure
+    /// part way never posts an earlier one twice; skipped releases are remembered one by one, so none is ever missed.
+    /// A notice without a message (a brand-new server's first release) is only remembered.
+    /// </summary>
+    public static async Task<IReadOnlyList<Due>> DueAsync(NpgsqlConnection conn, ReleaseInfo? running, IReadOnlyList<RefusedRelease> refused)
+    {
+        var due = new List<Due>();
+        if (running is null) return due; // a development build: nothing to announce
+        var version = running.Version.ToString(CultureInfo.InvariantCulture);
+        var announced = long.TryParse(await Settings.GetAsync(conn, Settings.ReleaseAnnounced), out var a) ? a : (long?)null;
+        Task RememberRelease(NpgsqlConnection c) => Settings.SetAsync(c, Settings.ReleaseAnnounced, version);
+        if (announced is null) due.Add(new(null, RememberRelease)); // first start with notices: remember silently
+        else if (running.Version > announced) due.Add(new(Updated(running), RememberRelease));
+        else if (running.Version < announced) due.Add(new(WentBack(running.Version, announced.Value), RememberRelease));
+
+        var told = (await Settings.GetAsync(conn, Settings.ReleaseSkipAnnounced) ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+        foreach (var r in refused.Where(r => r.Version > running.Version).DistinctBy(r => r.Version).OrderBy(r => r.Version))
+        {
+            var key = r.Version.ToString(CultureInfo.InvariantCulture);
+            if (told.Contains(key)) continue;
+            async Task RememberSkip(NpgsqlConnection c)
+            {
+                var now = (await Settings.GetAsync(c, Settings.ReleaseSkipAnnounced) ?? "")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Append(key).Distinct()
+                    .OrderByDescending(v => v, StringComparer.Ordinal).Take(50); // the newest 50 are plenty
+                await Settings.SetAsync(c, Settings.ReleaseSkipAnnounced, string.Join(",", now));
+            }
+            due.Add(new(announced is null ? null : Skipped(r, running.Version), RememberSkip));
+        }
+        return due;
     }
 
     /// <summary>"20261020164000" -> "20 Oct 2026, 16:40 UTC".</summary>

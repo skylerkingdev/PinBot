@@ -52,6 +52,8 @@ public sealed partial class SessionWatcher(
                 Log.Info($"[sync] inventory sent: {tables.Count(t => t.Eligible)} eligible tables");
             }
             ApplyCompetitions(await sync.PullCompetitionsAsync(_tables, ct));
+            // the waiting connection normally announces releases; without it (a proxy that cuts long requests) this does
+            if (sync.LatestRelease > Sync.AutoUpdate.Version && Sync.AutoUpdate.Enabled && !_updatePending) _updatePending = true;
             if (_syncFailures > 0) Log.Good("[sync] server reachable again");
             _syncFailures = 0;
             _nextSync = left > 0 || !_liveConnection ? DateTime.UtcNow + RetryInterval : DateTime.MaxValue;
@@ -73,7 +75,11 @@ public sealed partial class SessionWatcher(
     {
         if (updater is null || !_updatePending || !Quiet) return;
         _updatePending = false;
-        try { await updater.MaybeUpdateAsync(ct); }
+        try
+        {
+            await updater.MaybeUpdateAsync(ct, () => Quiet && !VpxRunning());
+            if (updater.Deferred) _updatePending = true; // a table started during the download: after it closes
+        }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or NotSupportedException)
         {
             // a server without a published release (or a hiccup) just means no update this time

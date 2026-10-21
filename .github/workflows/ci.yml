@@ -1,10 +1,22 @@
-# Build and test on every push and pull request. Windows, because the cabinet agent is a Windows program; the server
-# tests use the PostgreSQL that GitHub's Windows image ships (stopped by default; user postgres, password root).
+# Build and test pull requests and pushes. Windows, because the VPin agent is a Windows program; the server tests use
+# the PostgreSQL that GitHub's Windows image ships (stopped by default; user postgres, password root).
+# A push that makes a release skips this run: the release workflow runs exactly these checks first (workflow_call).
 name: CI
 
 on:
   push:
     branches: [master]
+    paths-ignore: # the release workflow's paths (see release.yml): its own test job covers them
+      - 'src/**'
+      - 'deploy/**'
+      - 'vendor/**'
+      - 'publish.ps1'
+      - 'tools/PinBot.Sign/**'
+      - 'keys/update-signing.pub'
+      - 'NOTICE.md'
+      - 'docs/DEPLOY-NAS.md'
+      - 'docs/DISCORD-SETUP.md'
+      - '.github/workflows/release.yml'
   pull_request:
   workflow_call: # the release workflow runs the same checks before it builds anything
 
@@ -16,11 +28,12 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true # the pinned memory maps are built into the agent
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
 

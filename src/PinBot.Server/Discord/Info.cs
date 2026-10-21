@@ -28,16 +28,18 @@ public sealed class InfoPublisher(Db db, IDiscordApi api, DiscordOptions discord
     /// <summary>Updates only go to the info channel: they are news about PinBot, not about a competition.</summary>
     async Task AnnounceReleaseAsync(NpgsqlConnection conn, string channel, CancellationToken ct)
     {
-        await using var tx = await conn.BeginTransactionAsync(ct); // posted, then remembered: a failed post is tried again
-        var notices = await ReleaseNotices.DueAsync(conn, ReleaseInfo.Load(ReleasePath), ReleaseNotices.ReadRefused(UpdaterStatePath));
-        try
+        foreach (var due in await ReleaseNotices.DueAsync(conn, ReleaseInfo.Load(ReleasePath), ReleaseNotices.ReadRefused(UpdaterStatePath)))
         {
-            foreach (var n in notices) await api.PostMessageAsync(channel, n, ct);
-            await tx.CommitAsync(ct);
-        }
-        catch (Exception ex) when (ex is DiscordRestException or HttpRequestException or TaskCanceledException)
-        {
-            log.LogWarning("release notice not posted: {Message}", ex.Message);
+            try
+            {
+                if (due.Message is { } message) await api.PostMessageAsync(channel, message, ct);
+            }
+            catch (Exception ex) when (ex is DiscordRestException or HttpRequestException or TaskCanceledException)
+            {
+                log.LogWarning("release notice not posted: {Message}", ex.Message);
+                return; // posted, then remembered: this one and the rest are tried again on the next pass
+            }
+            await due.Remember(conn);
         }
     }
 

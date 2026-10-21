@@ -26,7 +26,6 @@ env:
   BRANCH: bot/memory-maps
   BASE: ${{ github.event.repository.default_branch || 'master' }}
   UPSTREAM: https://github.com/tomlogic/pinball-memory-maps
-  GH_TOKEN: ${{ github.token }}
 
 jobs:
   update:
@@ -36,12 +35,15 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.BASE }} # always build the bump on top of the default branch, even for a manual run elsewhere
+          persist-credentials: false # no token in .git/config while third-party code builds and tests
 
       - name: Compare pinned maps with upstream
         id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $old = git rev-parse HEAD:vendor/pinball-memory-maps
           $new = ((git ls-remote $env:UPSTREAM HEAD) -split "`t")[0]
@@ -64,7 +66,7 @@ jobs:
           git -C vendor/pinball-memory-maps checkout --detach ${{ steps.check.outputs.new }}
           if ($LASTEXITCODE) { throw "checkout of upstream HEAD failed" }
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         if: steps.check.outputs.changed == '1'
         with:
           dotnet-version: 10.0.x
@@ -92,11 +94,12 @@ jobs:
             | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/changes.md"
           Get-Content "$env:RUNNER_TEMP/kind.txt" >> $env:GITHUB_OUTPUT
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.check.outputs.changed == '1'
         with:
           repository: francisdb/pinmame-nvram
           path: pinmame-nvram # inside the workspace; only named files are committed below
+          persist-credentials: false
 
       - name: Start PostgreSQL
         if: steps.check.outputs.changed == '1'
@@ -115,8 +118,11 @@ jobs:
           dotnet test PinBot.sln -c Release --no-build --logger trx --results-directory "$env:RUNNER_TEMP/results"
           if ($LASTEXITCODE) { throw "tests failed" }
 
+      # the only step with write access: everything that runs third-party code (build, tests) came before, without it
       - name: Release an additive update, or open a pull request
         if: steps.check.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $old = '${{ steps.check.outputs.old }}'; $new = '${{ steps.check.outputs.new }}'
           $passed = '${{ steps.test.outcome }}' -eq 'success'
@@ -133,6 +139,7 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote set-url origin "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git"
           git add vendor/pinball-memory-maps src/PinBot.Server/rom-variants.json NOTICE.md
           $message = @('-m', "Update Pinball Memory Maps to $($new.Substring(0,7))", '-m', "Upstream $env:UPSTREAM/compare/$old...$new", '-m', "Reference corpus: $corpus")
           # the line servers post in their info channel when this release reaches them
@@ -142,7 +149,7 @@ jobs:
 
           if ($passed -and $additive -and $corpusClean) {
             # fast-forward only: if master moved during this run, the push fails and a pull request is opened instead
-            git push origin "HEAD:refs/heads/$env:BASE"
+            $pushed = git push origin "HEAD:refs/heads/$env:BASE" 2>&1
             if ($LASTEXITCODE -eq 0) {
               $stale = gh pr list --head $env:BRANCH --state open --json number --jq '.[0].number'
               if ($stale) { gh pr close $stale --delete-branch --comment "Superseded: $($new.Substring(0,7)) only added maps, passed every test with 0 corpus mismatches, and was merged and released automatically ($run)." }
@@ -153,7 +160,7 @@ jobs:
               $global:LASTEXITCODE = 0
               return
             }
-            Write-Warning "$env:BASE moved during this run: opening a pull request instead"
+            Write-Warning "pushing to $env:BASE failed, opening a pull request instead: $($pushed -join ' ')"
           }
 
           $body = @(
@@ -162,7 +169,7 @@ jobs:
             "- **Build and tests:** $(if ($passed) { 'passed' } else { "**FAILED**, see the [run log]($run)" })"
             "- **Reference corpus** (francisdb/pinmame-nvram ``$corpusSha``): $corpus"
             ''
-            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms or variant pairs PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } else { "$env:BASE moved during the run" })."
+            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms, variant pairs or licence files PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } else { "pushing to $env:BASE failed (see the run log)" })."
             ''
             'Review before merging: read the upstream commits for checksum, layout, encoding or label changes on platforms PinBot decodes (SAM, Capcom, Gottlieb and WPC have needed fixes before); check that changed ROMs still decode on a real cabinet where you can; confirm the corpus line has 0 mismatches. CI does not run on pull requests opened by this workflow: close and reopen it, or push to the branch, to get the CI check. Merging it releases it (the release workflow runs on the push to master).'
             ''

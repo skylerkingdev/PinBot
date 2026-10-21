@@ -493,12 +493,11 @@ deploy/.env
 deploy/data/
 deploy/backups/
 
-# built cabinet agent, added by publish.ps1
-deploy/agent/pinbot.exe
+# what the release workflow puts into deploy/agent/ before building the server image (exe, manifest, release notes)
+deploy/agent/*
+!deploy/agent/README.md
 
-# release signing key for cabinet auto-update (publish.ps1 creates it); never commit, back it up
-keys/
-deploy/agent/pinbot.json
-
-# your NAS share and public URL for deploy-nas.ps1
-deploy-nas.local.json
+# release signing key: the private key is never committed (back it up offline; it is a secret of the "release"
+# environment on GitHub). The public key is committed: builds read it, and signing checks the secret against it.
+keys/*
+!keys/update-signing.pub

@@ -1,12 +1,16 @@
-# Every push to master that changes what runs (server, agent, deploy files, maps) becomes a signed release, once the
-# same checks as CI pass:
+# Every push to master that changes what ships (server, agent, deploy files, maps, the setup guides in the package)
+# becomes a signed release, once the same checks as CI pass:
 #   1. pinbot.exe, Authenticode-signed through SignPath Foundation (docs/CODE-SIGNING.md: a maintainer approves each
 #      release in SignPath; skipped while the "release" environment has no SIGNPATH_API_TOKEN), then signed for
 #      auto-update with the release key (the secret UPDATE_SIGNING_KEY in the protected "release" environment);
 #   2. the server image (with that pinbot.exe inside) and the updater image, for amd64 and arm64, on ghcr.io;
-#   3. a GitHub Release whose server-release.json names both images by digest, signed with the same key.
+#   3. a GitHub Release whose server-release.json names both images by digest, signed with the same key; only then
+#      do the images' `latest` tags (what a brand-new server starts from) move to this release.
 # Servers' updaters install it (early ring at once, stable ring after 48 h); their VPins update from their server.
 # Delete a release on GitHub within 48 hours and stable servers never install it.
+#
+# The private key is never present while third-party code builds: the builds get only the committed public key
+# (keys/update-signing.pub), and the key is written just for the signing steps, which check it against that file.
 name: Release
 
 on:
@@ -18,6 +22,11 @@ on:
       - 'vendor/**'
       - 'publish.ps1'
       - 'tools/PinBot.Sign/**'
+      - 'keys/update-signing.pub'
+      - 'NOTICE.md'             # built into pinbot.exe
+      - 'docs/DEPLOY-NAS.md'    # in pinbot-deploy.zip
+      - 'docs/DISCORD-SETUP.md' # in pinbot-deploy.zip
+      - '.github/workflows/release.yml'
   workflow_dispatch: # also started by the memory maps workflow after it merges an update
 
 concurrency:
@@ -42,38 +51,37 @@ jobs:
     timeout-minutes: 200 # most of it waiting for the release to be approved in SignPath
     outputs:
       version: ${{ steps.version.outputs.version }}
-      public-key: ${{ steps.build.outputs.public-key }}
-    env:
-      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      public-key: ${{ steps.version.outputs.public-key }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
 
       - id: version
         shell: pwsh
-        run: "\"version=$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))\" >> $env:GITHUB_OUTPUT"
-
-      # pinbot.exe only: the update manifest (SHA-256 and size) must describe the Authenticode-signed file
-      - id: build
-        shell: pwsh
         env:
-          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          HAS_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         run: |
-          if (-not $env:UPDATE_SIGNING_KEY) { throw 'the release environment has no UPDATE_SIGNING_KEY secret' }
-          New-Item -ItemType Directory -Force keys | Out-Null
-          [IO.File]::WriteAllText("$PWD\keys\update-signing.pem", $env:UPDATE_SIGNING_KEY)
-          ./publish.ps1 -Version ${{ steps.version.outputs.version }} -RequireKey -SkipTests -SkipManifest
-          "public-key=$((Get-Content keys\update-signing.pub -Raw).Trim())" >> $env:GITHUB_OUTPUT
-          Remove-Item keys -Recurse -Force # not on disk while SignPath's action runs
+          "version=$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))" >> $env:GITHUB_OUTPUT
+          $key = (Get-Content keys\update-signing.pub -Raw).Trim()
+          if (-not $key) { throw 'keys/update-signing.pub is missing or empty' }
+          "public-key=$key" >> $env:GITHUB_OUTPUT
+          "signpath=$env:HAS_SIGNPATH" >> $env:GITHUB_OUTPUT
+
+      # pinbot.exe only, with the public key built in: the update manifest (SHA-256 and size) must describe the
+      # Authenticode-signed file, so it is written after that. No secret is present while this compiles.
+      - name: Build pinbot.exe
+        shell: pwsh
+        run: ./publish.ps1 -Version ${{ steps.version.outputs.version }} -PublicKeyFile keys\update-signing.pub -SkipTests -SkipManifest
 
       - id: unsigned
-        if: env.SIGNPATH_API_TOKEN != ''
-        uses: actions/upload-artifact@v4
+        if: steps.version.outputs.signpath == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: agent-unsigned
           path: dist/pinbot.exe
@@ -82,7 +90,7 @@ jobs:
 
       # SignPath Foundation's open source program: the job waits here until a maintainer approves the release in SignPath
       - id: authenticode
-        if: env.SIGNPATH_API_TOKEN != ''
+        if: steps.version.outputs.signpath == 'true'
         uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -97,7 +105,7 @@ jobs:
       - name: Use the signed pinbot.exe
         shell: pwsh
         run: |
-          if (-not $env:SIGNPATH_API_TOKEN) {
+          if ('${{ steps.version.outputs.signpath }}' -ne 'true') {
             Write-Host '::warning::the release environment has no SIGNPATH_API_TOKEN: pinbot.exe is not Authenticode-signed'
             exit 0
           }
@@ -106,23 +114,22 @@ jobs:
           Write-Host "Authenticode: $($s.SignerCertificate.Subject)"
           Move-Item dist\signed\pinbot.exe dist\pinbot.exe -Force
 
-      # after Authenticode: VPins check this SHA-256 and size against the file they download
+      # after Authenticode: VPins check this SHA-256 and size against the file they download. The signing tool was built
+      # by publish.ps1 above; the key exists only for this step and must match the committed public key.
       - name: Sign the update manifest
         shell: pwsh
         env:
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
         run: |
-          New-Item -ItemType Directory -Force keys | Out-Null
+          if (-not $env:UPDATE_SIGNING_KEY) { throw 'the release environment has no UPDATE_SIGNING_KEY secret' }
           [IO.File]::WriteAllText("$PWD\keys\update-signing.pem", $env:UPDATE_SIGNING_KEY)
           try {
-            dotnet dist\signtool\PinBot.Sign.dll key keys --existing | Out-Null # writes update-signing.pub, which sign checks against
-            if ($LASTEXITCODE -ne 0) { throw 'reading the release key failed' }
             dotnet dist\signtool\PinBot.Sign.dll sign keys dist\pinbot.exe ${{ steps.version.outputs.version }} dist\pinbot.json
-            if ($LASTEXITCODE -ne 0) { throw 'signing the release failed' }
-          } finally { Remove-Item keys -Recurse -Force }
+            if ($LASTEXITCODE -ne 0) { throw 'signing the release failed (is the secret the key of keys/update-signing.pub?)' }
+          } finally { Remove-Item keys\update-signing.pem -Force }
           Get-Content dist\pinbot.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: agent
           path: |
@@ -132,7 +139,7 @@ jobs:
 
   images:
     needs: agent
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -145,56 +152,85 @@ jobs:
       DOCKER_BUILD_RECORD_UPLOAD: false # no build-record artifacts next to the release's own
       # not VERSION: MSBuild would take it as the project version (a 14-digit number is not one) and restore fails
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # the previous release's tag, for the notes
+          persist-credentials: false
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: agent
           path: deploy/agent
 
-      # Notes: every commit subject since the previous release (GitHub), and the lines starting "Players:" in those
-      # commits' messages (the info channel: news for players, not developers).
+      # Notes for GitHub: what changed (commit subjects since the previous release). Notes for players (the info channel
+      # of every server, and the top of the release page): lines starting "Players:" in commit messages, taken only from
+      # the maintainer's commits and the maps workflow's, so a contributor's commit cannot speak to every community.
       - name: Release notes
+        env:
+          REPO: ${{ github.repository }}
         run: |
           prev=$(git tag --list 'v2*' --sort=-version:refname | head -n1)
           range=${prev:+$prev..}HEAD
-          git log $range --no-merges --format='- %s' | head -n 60 > "$RUNNER_TEMP/notes.md"
-          printf '\n[Code signing policy](https://github.com/%s/blob/master/docs/CODE-SIGNING.md)\n' "${{ github.repository }}" >> "$RUNNER_TEMP/notes.md"
-          git log $range --no-merges --format='%B' | sed -n 's/^Players:[[:space:]]*//p' > "$RUNNER_TEMP/players.txt"
-          url="https://github.com/${{ github.repository }}/releases/tag/v$RELEASE"
+          git log $range --no-merges \
+            --author='<67876654+skylerkingdev@users.noreply.github.com>' \
+            --author='<41898282+github-actions\[bot\]@users.noreply.github.com>' \
+            --format='%B' | sed -n 's/^Players:[[:space:]]*//p' > "$RUNNER_TEMP/players.txt"
+          {
+            if [ -s "$RUNNER_TEMP/players.txt" ]; then
+              echo '## For players'; echo; sed 's/^/- /' "$RUNNER_TEMP/players.txt"; echo
+            fi
+            echo '## Install'
+            echo
+            echo '- **VPin owners:** run `/pinbot pair` in your Discord server, or download `pinbot.exe` below. Connected VPins update themselves.'
+            echo "- **New server:** download \`pinbot-deploy.zip\` and follow the [setup guide](https://github.com/$REPO/blob/master/docs/DEPLOY-NAS.md)."
+            echo '- **Existing servers** install this release by themselves 48 hours after it is published.'
+            echo
+            echo '## Files'
+            echo
+            echo '- `pinbot.exe`: PinBot for your VPin (Windows).'
+            echo '- `pinbot-deploy.zip`: the files to set up a new PinBot server.'
+            echo '- `pinbot.json`, `server-release.json`: the signed descriptions VPins and servers check before they update.'
+            echo
+            echo '## Changes'
+            echo
+            git log $range --no-merges --format='- %s' | head -n 60
+            echo
+            echo "[Code signing policy](https://github.com/$REPO/blob/master/docs/CODE-SIGNING.md)"
+          } > "$RUNNER_TEMP/notes.md"
+          url="https://github.com/$REPO/releases/tag/v$RELEASE"
           jq -n --argjson version "$RELEASE" --arg url "$url" --rawfile p "$RUNNER_TEMP/players.txt" \
             '{version: $version, notes: ($p | split("\n") | map(select(length > 0))), url: $url}' > deploy/agent/release.json
+          { echo '### Info-channel notes for this release'; echo; cat "$RUNNER_TEMP/players.txt"; } >> "$GITHUB_STEP_SUMMARY"
           cat deploy/agent/release.json "$RUNNER_TEMP/notes.md"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: notes
           path: |
             ${{ runner.temp }}/notes.md
             ${{ runner.temp }}/players.txt
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # only the release's own tag here: `latest` moves once the release is signed and published (publish job)
       - id: server
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: deploy/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ env.SERVER_IMAGE }}:${{ env.RELEASE }},${{ env.SERVER_IMAGE }}:latest
+          tags: ${{ env.SERVER_IMAGE }}:${{ env.RELEASE }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
       - id: updater
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: deploy/updater.Dockerfile
@@ -203,49 +239,54 @@ jobs:
           build-args: |
             UPDATE_PUBLIC_KEY=${{ needs.agent.outputs.public-key }}
             UPDATE_REPO=${{ github.repository }}
-          tags: ${{ env.UPDATER_IMAGE }}:${{ env.RELEASE }},${{ env.UPDATER_IMAGE }}:latest
+          tags: ${{ env.UPDATER_IMAGE }}:${{ env.RELEASE }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
   publish:
     needs: [agent, images]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: release
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
+      packages: write # to move the images' `latest` tags once the release is out
     env:
       RELEASE: ${{ needs.agent.outputs.version }}
+      SERVER_REF: ${{ needs.images.outputs.server }}
+      UPDATER_REF: ${{ needs.images.outputs.updater }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: agent
           path: ${{ runner.temp }}/artifacts/agent
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: notes
           path: ${{ runner.temp }}/artifacts/notes
+
+      # built before the key exists, so no build step ever sees it
+      - name: Build the signing tool
+        run: dotnet build tools/PinBot.Sign -c Release -o "$RUNNER_TEMP/signtool" --nologo
 
       - name: Sign the server release
         env:
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
         run: |
-          dotnet build tools/PinBot.Sign -c Release -o "$RUNNER_TEMP/signtool" --nologo
-          sign="$RUNNER_TEMP/signtool/PinBot.Sign.dll"
-          mkdir -p keys
+          test -n "$SERVER_REF" && test -n "$UPDATER_REF" || { echo "image digests missing"; exit 1; }
           printf '%s\n' "$UPDATE_SIGNING_KEY" > keys/update-signing.pem
-          dotnet "$sign" key keys --existing
-          echo
-          dotnet "$sign" server keys "$RELEASE" \
-            "$SERVER_IMAGE@${{ needs.images.outputs.server }}" "$UPDATER_IMAGE@${{ needs.images.outputs.updater }}" \
+          trap 'rm -f keys/update-signing.pem' EXIT
+          dotnet "$RUNNER_TEMP/signtool/PinBot.Sign.dll" server keys "$RELEASE" \
+            "$SERVER_IMAGE@$SERVER_REF" "$UPDATER_IMAGE@$UPDATER_REF" \
             "$RUNNER_TEMP/artifacts/notes/players.txt" "$RUNNER_TEMP/server-release.json"
-          rm -rf keys
           cat "$RUNNER_TEMP/server-release.json"
 
       # what a new community downloads to set up a server: no sources, no build, no keys (docs/DEPLOY-NAS.md)
@@ -266,3 +307,17 @@ jobs:
             --notes-file "$RUNNER_TEMP/artifacts/notes/notes.md" \
             "$RUNNER_TEMP/artifacts/agent/pinbot.exe" "$RUNNER_TEMP/artifacts/agent/pinbot.json" "$RUNNER_TEMP/server-release.json" \
             "$RUNNER_TEMP/pinbot-deploy.zip"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # a brand-new server starts from `latest`: only ever a release that is signed and published
+      - name: Move the latest tags to this release
+        run: |
+          docker buildx imagetools create --tag "$SERVER_IMAGE:latest" "$SERVER_IMAGE@$SERVER_REF"
+          docker buildx imagetools create --tag "$UPDATER_IMAGE:latest" "$UPDATER_IMAGE@$UPDATER_REF"

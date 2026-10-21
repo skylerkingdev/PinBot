@@ -10,11 +10,16 @@ public sealed class Docker(string composeDir)
 {
     string _composeDir = composeDir;
 
+    /// <summary>Whether compose can be run with paths the host understands (see <see cref="UseHostProjectPathAsync"/>).</summary>
+    public bool Ready { get; private set; }
+
     /// <summary>
     /// Compose resolves the project's relative paths (./data/...) against its project directory and hands them to the
     /// host's Docker, which knows only host paths. Inside this container the project is mounted at /deploy, a path the
     /// host does not have. So: find the host folder behind that mount (from Docker itself), make the same path exist in
     /// here as a link to /deploy, and run compose from it; every path compose produces is then a real host path.
+    /// If that cannot be done, <see cref="Ready"/> stays false and nothing is ever recreated: guessing wrong paths would
+    /// create a server that cannot start.
     /// </summary>
     public async Task UseHostProjectPathAsync(CancellationToken ct)
     {
@@ -23,16 +28,17 @@ public sealed class Docker(string composeDir)
         var (exit, source) = await RunAsync(ct, "inspect", "--format",
             "{{range .Mounts}}{{if eq .Destination \"" + _composeDir + "\"}}{{.Source}}{{end}}{{end}}", self);
         source = source.Trim();
-        if (exit != 0 || !source.StartsWith('/') || source == _composeDir) return;
-        if (!Directory.Exists(source))
+        if (exit != 0 || !source.StartsWith('/')) return;
+        if (source != _composeDir && !Directory.Exists(source) && !File.Exists(source))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(source)!);
             Directory.CreateSymbolicLink(source, _composeDir);
         }
+        // the host path, seen from in here, must be this project (not some unrelated folder that happens to exist)
+        if (!File.Exists(Path.Combine(source, "docker-compose.yml"))) return;
         _composeDir = source;
+        Ready = true;
     }
-
-    public string ProjectDir => _composeDir;
 
     /// <summary>
     /// The image the server service runs (compose's `image:`). A fresh `docker compose up` pulls it once; from then on the
@@ -62,17 +68,52 @@ public sealed class Docker(string composeDir)
     public async Task<bool> ImageExistsAsync(string image, CancellationToken ct) =>
         (await RunAsync(ct, "image", "inspect", image)).Exit == 0;
 
+    /// <summary>The image's ID (sha256:…), or null if there is no such image here.</summary>
+    public async Task<string?> ImageIdAsync(string image, CancellationToken ct)
+    {
+        var (exit, output) = await RunAsync(ct, "image", "inspect", "--format", "{{.Id}}", image);
+        return exit == 0 && output.StartsWith("sha256:", StringComparison.Ordinal) ? output.Trim() : null;
+    }
+
     string[] Compose(params string[] args) =>
         ["compose", "--project-directory", _composeDir, "-f", Path.Combine(_composeDir, "docker-compose.yml"), .. args];
 
-    /// <summary>Recreates one service of the PinBot project from its current image, leaving the others running.</summary>
-    public Task RecreateAsync(string service, CancellationToken ct) =>
-        CheckedAsync(ct, Compose("up", "-d", "--no-deps", "--force-recreate", service));
-
-    /// <summary>Like <see cref="RecreateAsync"/>, but returns compose's error instead of throwing (null: it worked).</summary>
+    /// <summary>
+    /// Recreates one service of the PinBot project from the image already here, leaving the others running. Never pulls:
+    /// the updater put exactly the verified image under the service's tag, and a pull would swap in whatever the
+    /// registry's tag points at now.
+    /// </summary>
     public async Task<string?> TryRecreateAsync(string service, CancellationToken ct)
     {
-        var (exit, output) = await RunAsync(ct, Compose("up", "-d", "--no-deps", "--force-recreate", service));
+        var (exit, output) = await RunAsync(ct, Compose("up", "-d", "--no-deps", "--force-recreate", "--pull", "never", service));
         return exit == 0 ? null : $"docker compose up {service} failed ({exit}): {output}";
+    }
+
+    public async Task RecreateAsync(string service, CancellationToken ct)
+    {
+        if (await TryRecreateAsync(service, ct) is { } error) throw new InvalidOperationException(error);
+    }
+
+    /// <summary>The service's container: its state ("running", "exited", …) and how often Docker restarted it, or null.</summary>
+    public async Task<(string Status, int Restarts)?> ContainerStateAsync(string service, CancellationToken ct)
+    {
+        var (exit, id) = await RunAsync(ct, Compose("ps", "-a", "-q", service));
+        id = id.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "";
+        if (exit != 0 || id.Length == 0) return null;
+        var (code, state) = await RunAsync(ct, "inspect", "--format", "{{.State.Status}} {{.RestartCount}}", id);
+        var parts = state.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return code == 0 && parts.Length == 2 && int.TryParse(parts[1], out var restarts) ? (parts[0], restarts) : null;
+    }
+
+    /// <summary>
+    /// Removes this repository's images except <paramref name="keep"/> (image IDs): each release leaves the previous
+    /// one untagged, and a NAS disk would otherwise fill up over the years. An image still in use is skipped by Docker.
+    /// </summary>
+    public async Task PruneAsync(string repository, IReadOnlyCollection<string?> keep, CancellationToken ct)
+    {
+        var (exit, output) = await RunAsync(ct, "images", "--no-trunc", "--format", "{{.ID}}", repository);
+        if (exit != 0) return;
+        foreach (var id in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct())
+            if (!keep.Contains(id)) await RunAsync(ct, "rmi", id);
     }
 }
