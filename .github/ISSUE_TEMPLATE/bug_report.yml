@@ -35,7 +35,7 @@ body:
     id: release
     attributes:
       label: Release
-      description: "`pinbot status` shows the VPin's; `/pinbot status` in Discord shows each VPin's."
+      description: "`pinbot status` on the VPin shows its release. `/pinbot status` in Discord shows whether each VPin is up to date."
       placeholder: "20261021004511"
   - type: textarea
     id: report
