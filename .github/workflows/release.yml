@@ -1,8 +1,7 @@
 # Every push to master that changes what ships (server, agent, deploy files, maps, the setup guides in the package)
 # becomes a signed release, once the same checks as CI pass:
-#   1. pinbot.exe, Authenticode-signed through SignPath Foundation (docs/CODE-SIGNING.md: a maintainer approves each
-#      release in SignPath; skipped while the "release" environment has no SIGNPATH_API_TOKEN), then signed for
-#      auto-update with the release key (the secret UPDATE_SIGNING_KEY in the protected "release" environment);
+#   1. pinbot.exe, signed for auto-update with the release key (the secret UPDATE_SIGNING_KEY in the protected
+#      "release" environment; optional Windows signing is off, docs/CODE-SIGNING.md);
 #   2. the server image (with that pinbot.exe inside) and the updater image, for amd64 and arm64, on ghcr.io;
 #   3. a GitHub Release whose server-release.json names both images by digest, signed with the same key; only then
 #      do the images' `latest` tags (what a brand-new server starts from) move to this release.
@@ -48,7 +47,7 @@ jobs:
     needs: test
     runs-on: windows-latest
     environment: release
-    timeout-minutes: 200 # most of it waiting for the release to be approved in SignPath
+    timeout-minutes: 200 # with Windows signing on, most of it waits for the release to be approved in SignPath
     outputs:
       version: ${{ steps.version.outputs.version }}
       public-key: ${{ steps.version.outputs.public-key }}
@@ -74,7 +73,7 @@ jobs:
           "signpath=$env:HAS_SIGNPATH" >> $env:GITHUB_OUTPUT
 
       # pinbot.exe only, with the public key built in: the update manifest (SHA-256 and size) must describe the
-      # Authenticode-signed file, so it is written after that. No secret is present while this compiles.
+      # final file (Authenticode-signed when Windows signing is on), so it is written after that. No secret is present while this compiles.
       - name: Build pinbot.exe
         shell: pwsh
         run: ./publish.ps1 -Version ${{ steps.version.outputs.version }} -PublicKeyFile keys\update-signing.pub -SkipTests -SkipManifest
@@ -88,7 +87,8 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # SignPath Foundation's open source program: the job waits here until a maintainer approves the release in SignPath
+      # Optional Windows signing (off unless the release environment has a SignPath token; docs/CODE-SIGNING.md): the job
+      # waits here until a maintainer approves the release in SignPath
       - id: authenticode
         if: steps.version.outputs.signpath == 'true'
         uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
@@ -106,7 +106,7 @@ jobs:
         shell: pwsh
         run: |
           if ('${{ steps.version.outputs.signpath }}' -ne 'true') {
-            Write-Host '::warning::the release environment has no SIGNPATH_API_TOKEN: pinbot.exe is not Authenticode-signed'
+            Write-Host 'Windows signing is off (no SIGNPATH_API_TOKEN): pinbot.exe is signed for auto-update only'
             exit 0
           }
           $s = Get-AuthenticodeSignature dist\signed\pinbot.exe
@@ -195,7 +195,7 @@ jobs:
             echo
             git log $range --no-merges --format='- %s' | head -n 60
             echo
-            echo "[Code signing policy](https://github.com/$REPO/blob/master/docs/CODE-SIGNING.md)"
+            echo "[How releases are signed](https://github.com/$REPO/blob/master/docs/CODE-SIGNING.md)"
           } > "$RUNNER_TEMP/notes.md"
           url="https://github.com/$REPO/releases/tag/v$RELEASE"
           jq -n --argjson version "$RELEASE" --arg url "$url" --rawfile p "$RUNNER_TEMP/players.txt" \

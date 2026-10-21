@@ -3,7 +3,7 @@
 #   -Version        the release number (default: now, UTC yyyyMMddHHmmss)
 #   -PublicKeyFile  build in this public key and do not touch the private key (the release workflow: the private key
 #                   is written only for its signing step); with -SkipManifest nothing secret is needed at all
-#   -SkipManifest   stop after dist\pinbot.exe (the release workflow Authenticode-signs the exe first, then signs the
+#   -SkipManifest   stop after dist\pinbot.exe (the release workflow, which can Authenticode-sign the exe first, then signs the
 #                   manifest, whose SHA-256 and size must be the signed file's)
 #   -SkipTests      the caller already ran them
 # Without -PublicKeyFile it uses keys\update-signing.pem, creating a new key pair the first time. A key made that way

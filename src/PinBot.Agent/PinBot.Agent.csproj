@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>pinbot</AssemblyName>
-    <Product>PinBot</Product> <!-- SignPath checks the product name of what it signs (docs/CODE-SIGNING.md) -->
+    <Product>PinBot</Product> <!-- optional Windows signing through SignPath checks the product name (docs/CODE-SIGNING.md) -->
     <RootNamespace>PinBot.Agent</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <Version>0.0.1</Version>
