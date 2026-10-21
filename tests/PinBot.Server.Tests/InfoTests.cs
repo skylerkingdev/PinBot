@@ -58,7 +58,7 @@ public class InfoTests
         await AskAsync(s, Command("weekly", [Opt("enabled", true), Opt("day", "Monday"), Opt("time", "19:00"), Opt("timezone", "America/New_York")], permissions: Manager, command: "pinbot-admin"));
         await info.RunOnceAsync();
         Assert.Equal([guideId], s.Discord.Edits);
-        Assert.Contains("every **Monday at 19:00** (America/New_York)", FakeDiscord.Body(s.Discord.Messages[guideId].Message));
+        Assert.Contains("every **Monday at 19:00** Eastern", FakeDiscord.Body(s.Discord.Messages[guideId].Message));
 
         // /pinbot help shows the same guide privately, pointing at the channel
         var help = await AskAsync(s, Command("help"));

@@ -31,3 +31,8 @@ Server:
 - Npgsql 8.0.5 — PostgreSQL License — PostgreSQL driver.
 - Dapper 2.1.35 — Apache-2.0 — SQL queries.
 - BouncyCastle.Cryptography 2.4.0 — MIT — checks the Ed25519 signature on Discord interactions.
+
+Self-test tool (`tools/PinBot.SelfTest`, built separately; not part of pinbot.exe):
+
+- PinMame 1.1.0 (pinmame-dotnet) — MIT — runs ROMs in the PinMAME emulator.
+- PinMame.Native.win-x64 3.7.0-beta2 (libpinmame) — PinMAME license — the emulator itself.

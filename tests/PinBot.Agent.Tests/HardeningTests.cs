@@ -25,6 +25,36 @@ public class HardeningTests
     }
 
     [Fact]
+    public void A_report_never_contains_the_server_credential()
+    {
+        var home = TestData.TempDir();
+        var desk = TestData.TempDir();
+        var before = Environment.GetEnvironmentVariable("PINBOT_HOME");
+        Environment.SetEnvironmentVariable("PINBOT_HOME", home);
+        try
+        {
+            var link = ServerLink.Create("https://pinbot.example.ts.net", "cab-1", "the-secret-credential");
+            LocalState.Update(s => s.Server = link);
+            var opts = new Dictionary<string, List<string>> { ["out"] = [desk] };
+            Assert.Equal(0, new Commands(TestData.Maps, opts).Report());
+
+            var zip = Assert.Single(Directory.GetFiles(desk, "PinBot-report-*.zip"));
+            using var archive = System.IO.Compression.ZipFile.OpenRead(zip);
+            var state = new StreamReader(archive.GetEntry("state.json")!.Open()).ReadToEnd();
+            Assert.Contains("(removed)", state);
+            Assert.DoesNotContain(link.ProtectedCredential, state);
+            Assert.DoesNotContain("the-secret-credential", state);
+            Assert.Equal("the-secret-credential", LocalState.Load().Server!.Credential()); // the PC's own copy is untouched
+        }
+        finally { Environment.SetEnvironmentVariable("PINBOT_HOME", before); }
+    }
+
+    [Theory]
+    [InlineData(20261021004511L, "21 Oct 2026, 00:45 UTC")]
+    [InlineData(0L, "unknown date")]
+    public void Releases_are_shown_with_their_date(long release, string shown) => Assert.Equal(shown, Commands.ReleaseDate(release));
+
+    [Fact]
     public void Files_PinBot_replaced_during_a_game_are_not_the_games()
     {
         var changed = new[] { @"C:\nv\afm_113b.nv", @"C:\nv\tz_94h.nv" };

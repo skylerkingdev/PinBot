@@ -83,7 +83,7 @@ public class WeeklyTests
 
         s.Clock.UtcNow = Monday1900.AddDays(1); // Tuesday: move it to Wednesday 20:30 Eastern
         var reply = await WeeklyAsync(s, Schedule(day: "Wednesday", time: "20:30", zone: "America/New_York"));
-        Assert.Contains("Wednesday at 20:30 (America/New_York)", reply);
+        Assert.Contains("Wednesday at 20:30 Eastern", reply);
         Assert.Contains($"continues until {T(Monday1900.AddDays(7), "f")}", reply);
         var nextStart = new DateTime(2026, 10, 22, 0, 30, 0, DateTimeKind.Utc); // Wed 2026-10-21 20:30 EDT, first slot after it ends
         Assert.Contains($"The next one starts {T(nextStart, "F")}", reply);

@@ -72,7 +72,7 @@ public class DiscordInteractionTests
         await publisher.RunOnceAsync();
         var call = Assert.Single(s.Discord.Notices);
         Assert.StartsWith("⏰ **Attack from Mars (Bally 1995)** ends <t:", call);
-        Assert.Contains("finished (VPX closed)", call);
+        Assert.Contains("A game counts if you've exited the table by", call);
         Assert.Contains("No scores yet.", call);
         Assert.Empty(s.Discord.Messages.Values.Single(m => m.Message["embeds"] is null).Message["allowed_mentions"]!["parse"]!.AsArray());
 

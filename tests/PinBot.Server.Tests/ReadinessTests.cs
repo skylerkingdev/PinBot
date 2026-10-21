@@ -85,9 +85,9 @@ public class ReadinessTests
 
         Assert.Contains("🟢 Current · ✅ up to date", lines);
         Assert.Contains("Behind · ⏳ updating itself", lines);
-        Assert.Contains("Old · ⚠️ too old to update itself", lines);
+        Assert.Contains("Old · ⚠️ needs a one-time manual update", lines);
         Assert.Contains("/download/pinbot.exe", lines);
-        Assert.Matches("Silent · .*version not known yet", lines);
+        Assert.Matches("Silent · .*version not reported yet", lines);
         Assert.Contains("**VPins**", (await AskAsync(s, Command("status")))["content"]!.GetValue<string>());
     }
 

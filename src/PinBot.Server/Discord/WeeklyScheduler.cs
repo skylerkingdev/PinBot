@@ -8,7 +8,18 @@ namespace PinBot.Server.Discord;
 /// <summary>The weekly slot: start day and time in a time zone, running for <see cref="Days"/> days.</summary>
 public sealed record WeeklySchedule(DayOfWeek Day, TimeSpan Time, TimeZoneInfo Zone, int Days = 7)
 {
-    public override string ToString() => $"{Day} at {Time:hh\\:mm} ({Zone.Id})";
+    public override string ToString() => $"{Day} at {Time:hh\\:mm} {ZoneName}";
+
+    /// <summary>The time zone as members picked it ("Eastern"), not its system id ("America/New_York").</summary>
+    public string ZoneName => ZoneNames.GetValueOrDefault(Zone.Id, Zone.Id);
+
+    /// <summary>The names of the time zones offered by /pinbot-admin weekly (Interactions.CommandDefinitions).</summary>
+    static readonly Dictionary<string, string> ZoneNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["America/New_York"] = "Eastern", ["America/Chicago"] = "Central", ["America/Denver"] = "Mountain",
+        ["America/Phoenix"] = "Arizona", ["America/Los_Angeles"] = "Pacific", ["Europe/London"] = "UK time",
+        ["Europe/Berlin"] = "Central European time", ["UTC"] = "UTC",
+    };
 }
 
 /// <summary>

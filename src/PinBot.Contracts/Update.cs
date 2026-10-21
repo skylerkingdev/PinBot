@@ -4,8 +4,8 @@ using System.Text;
 namespace PinBot.Contracts;
 
 /// <summary>
-/// Describes the cabinet agent a server offers (download/pinbot.json next to download/pinbot.exe). Signed by the
-/// community's release key, so a cabinet installs only builds that key signed: whoever controls the server or the
+/// Describes the VPin agent a server offers (download/pinbot.json next to download/pinbot.exe). Signed by the
+/// maintainer's release key, so a VPin installs only builds that key signed: whoever controls the server or the
 /// network can withhold updates but cannot push one.
 /// </summary>
 /// <param name="Version">release number, yyyyMMddHHmmss of the build (UTC); never installed unless newer</param>
@@ -15,7 +15,7 @@ public sealed record UpdateManifest(long Version, long Size, string Sha256, stri
 
 /// <summary>
 /// One release of the server, published with each GitHub Release (server-release.json). Signed by the same key as the
-/// cabinet agent, so a server's updater installs only images that key vouches for: whoever controls the registry or the
+/// VPin agent, so a server's updater installs only images that key vouches for: whoever controls the registry or the
 /// network can withhold updates but cannot push one.
 /// </summary>
 /// <param name="Version">release number, yyyyMMddHHmmss (UTC); the same number as the agent inside the server image</param>

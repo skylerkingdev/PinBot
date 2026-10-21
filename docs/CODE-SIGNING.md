@@ -3,7 +3,9 @@
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
-`pinbot.exe` is Authenticode-signed, so Windows shows SignPath Foundation as its publisher. Only `pinbot.exe` built from
+For developers and anyone checking what they install. Once the SignPath Foundation application is approved, every
+released `pinbot.exe` is Authenticode-signed and Windows shows SignPath Foundation as its publisher; until then releases
+are not Windows-signed (they are always signed for auto-update, see below). Only `pinbot.exe` built from
 this repository is signed; the server runs in Docker and is not.
 
 ## How a release is signed
@@ -28,9 +30,9 @@ team uses multi-factor authentication for GitHub and SignPath.
 ## Privacy
 
 `pinbot.exe` sends data only to the PinBot server it was paired with: the address in the pairing line you paste
-during setup, run by your Discord community. It sends the VPin's name, its table list and ROM names, the high scores
-and initials read from the games during competitions, whether a game is being played, and its version. It downloads
-updates from that same server. It sends nothing to the PinBot developers or anyone else, and has no telemetry.
+during setup, run by your Discord community. It sends the VPin's name (the Windows PC name unless you give another),
+its table list and ROM names, the high scores and initials read from the games during competitions, whether a game is
+being played, which competitions it is ready for, and its version. It downloads updates from that same server. It sends nothing to the PinBot developers or anyone else, and has no telemetry.
 Unpairing or uninstalling ([VPIN.md](VPIN.md)) stops it.
 
 The server then posts competitions and results to your Discord server; see [SERVER.md](SERVER.md).

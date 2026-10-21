@@ -4,21 +4,21 @@ using PinBot.Agent.Scoring;
 using PinBot.Agent.Sessions;
 
 const string Usage = """
-    PinBot cabinet agent - automatic pinball competitions for your Discord server
+    PinBot for your VPin - automatic pinball competitions for your Discord server
 
-      pinbot                                     set up: paste the line from /pinbot pair, then PinBot installs itself,
-                                                 starts with Windows (minimized) and runs. Run again to see its status.
-      pinbot status                              pairing, whether it runs and starts with Windows, competitions
-      pinbot uninstall                           restore any competition NVRAM, unpair, stop starting with Windows
-      pinbot report                              put logs and state in one zip on the desktop, to send when asked
+      pinbot                                       set up: paste the line from /pinbot pair; PinBot installs itself,
+                                                   starts with Windows (minimized) and runs. Run again to see its status.
+      pinbot status                                pairing, whether it runs and starts with Windows, its release, competitions
+      pinbot report                                logs and state in one zip on the desktop, to attach to a bug report
+      pinbot uninstall                             put back your own high scores, unpair, stop starting with Windows
 
-      pinbot scan  [--tables DIR] [--vpx DIR]    discover VPX, tables, ROMs, NVRAM; report eligibility
-      pinbot watch [--tables DIR] [--vpx DIR]    observe VPX sessions, report new high scores, and prepare/restore
-                                                 competition NVRAM while no table is running (Ctrl+C stops)
-      pinbot read  FILE.nv [--rom ROM]           decode one NVRAM file
-      pinbot diff  BEFORE.nv AFTER.nv [--rom ROM] compare two NVRAM files of the same ROM
-
-      pinbot pair LINE | URL CODE [--name NAME]           pair with a PinBot server (competitions come from it)
+      pinbot scan  [--tables DIR] [--vpx DIR]      find VPX and your tables, and show which can be used in competitions
+      pinbot watch [--tables DIR] [--vpx DIR]      run in this window and show each game's new high scores (Ctrl+C
+                                                   stops; close the minimized PinBot first: only one runs at a time)
+      pinbot pair  LINE | URL CODE [--name NAME]   pair with a PinBot server (competitions come from it)
+      pinbot read  FILE.nv [--rom ROM]             decode one NVRAM file
+      pinbot diff  BEFORE.nv AFTER.nv [--rom ROM]  compare two NVRAM files of the same ROM
+      pinbot notice                                third-party licences
 
     --tables / --vpx are remembered (only needed when discovery fails).
     --maps DIR overrides the built-in memory maps (Pinball Memory Maps, ODbL 1.0 / DbCL 1.0; see 'pinbot notice').

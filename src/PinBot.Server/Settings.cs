@@ -24,9 +24,6 @@ public static class Settings
     public const string ReleaseAnnounced = "release_announced";
     public const string ReleaseSkipAnnounced = "release_skip_announced";
 
-    public static Task DeleteAsync(NpgsqlConnection conn, string key) =>
-        conn.ExecuteAsync("DELETE FROM setting WHERE key = @key", new { key });
-
     public static Task<string?> GetAsync(NpgsqlConnection conn, string key) =>
         conn.ExecuteScalarAsync<string?>("SELECT value FROM setting WHERE key = @key", new { key });
 
@@ -60,7 +57,7 @@ public static class Pairing
     public static string PairingLine(string publicUrl, string code) => $"{publicUrl.TrimEnd('/')}/pair/{code}";
 }
 
-/// <summary>Where the server keeps the cabinet agent for download (deploy/agent/pinbot.exe, copied into the image).</summary>
+/// <summary>Where the server keeps the VPin agent for download (deploy/agent/pinbot.exe, copied into the image).</summary>
 public static class AgentDownload
 {
     public const string Route = "/download/pinbot.exe";

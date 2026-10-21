@@ -132,7 +132,7 @@ public sealed class InfoPublisher(Db db, IDiscordApi api, DiscordOptions discord
         string Ch(string? id, string fallback) => id is null ? fallback : $"<#{id}>";
         var weeklyLine = weekly is null
             ? "• Weekly competitions are off (a server manager turns them on with `/pinbot-admin weekly`)."
-            : $"• A new **weekly** game starts every **{weekly.Day} at {weekly.Time:hh\\:mm}** ({weekly.Zone.Id}), leaderboard in {Ch(discord.WeeklyChannelId ?? discord.ChannelId, "the weekly channel")}.";
+            : $"• A new **weekly** game starts every **{weekly.Day} at {weekly.Time:hh\\:mm}** {weekly.ZoneName}, leaderboard in {Ch(discord.WeeklyChannelId ?? discord.ChannelId, "the weekly channel")}.";
         var text = $"""
             **Play**
             • Put your initials in your server nickname: `Name | [ABC]` (more than one: `[ABC,XYZ]`).
@@ -143,11 +143,11 @@ public sealed class InfoPublisher(Db db, IDiscordApi api, DiscordOptions discord
             **Compete**
             • `/pinbot start`: challenge everyone on any game, from 1 hour to 7 days. `/pinbot games` lists them all.
             • `/pinbot status`: what's running and who leads. `/pinbot end`: end a competition you started.
-            • One-off leaderboards are in {Ch(discord.ChannelId, "the challenges channel")}.
+            • Challenge leaderboards are in {Ch(discord.ChannelId, "the challenges channel")}.
             {weeklyLine}
             • You are only pinged when someone passes your score, and when you finish on the podium.
 
-            **Connect your own VPin** (a cabinet or a desktop)
+            **Connect your own VPin** (any Windows PC with Visual Pinball X)
             • `/pinbot pair` (only you see the reply): download **pinbot.exe**, double-click it, paste the line. It runs by itself from then on.
             • Your own high scores are backed up before a competition and put back after it.
             • PinBot and every connected VPin update themselves; this channel says when, and what changed.

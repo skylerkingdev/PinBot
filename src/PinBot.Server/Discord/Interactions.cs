@@ -36,7 +36,7 @@ public static class Interactions
           "options": [
             { "type": 1, "name": "start", "description": "Start a competition on a game",
               "options": [
-                { "type": 3, "name": "game", "description": "Game: type part of its name to search them all", "required": true, "autocomplete": true },
+                { "type": 3, "name": "game", "description": "Type part of the game's name", "required": true, "autocomplete": true },
                 { "type": 4, "name": "length", "description": "How long it runs (default 3 days)", "required": false,
                   "choices": [ { "name": "1 hour", "value": 1 }, { "name": "2 hours", "value": 2 }, { "name": "4 hours", "value": 4 },
                                { "name": "1 day", "value": 24 }, { "name": "3 days", "value": 72 }, { "name": "7 days", "value": 168 } ] } ] },
@@ -47,8 +47,8 @@ public static class Interactions
                 { "type": 3, "name": "initials", "description": "The initials they will enter (1-3 letters or digits)", "required": true, "min_length": 1, "max_length": 3 },
                 { "type": 3, "name": "name", "description": "Their name, shown on leaderboards (optional)", "required": false, "max_length": 24 } ] },
             { "type": 1, "name": "end", "description": "End a competition early (one you started; managers: any)",
-              "options": [ { "type": 4, "name": "competition", "description": "Competition", "required": true, "autocomplete": true } ] },
-            { "type": 1, "name": "pair", "description": "Get a one-time code to connect your VPin to PinBot" },
+              "options": [ { "type": 4, "name": "competition", "description": "Which competition to end", "required": true, "autocomplete": true } ] },
+            { "type": 1, "name": "pair", "description": "Connect your VPin: get pinbot.exe and a one-time pairing line" },
             { "type": 1, "name": "help", "description": "How PinBot works (only you see it)" }
           ]
         },
@@ -56,11 +56,11 @@ public static class Interactions
           "name": "pinbot-admin", "description": "PinBot settings (server managers)", "type": 1, "dm_permission": false,
           "default_member_permissions": "32",
           "options": [
-            { "type": 1, "name": "channels", "description": "Where PinBot posts: challenges, weekly and the guide (none given: show them)",
+            { "type": 1, "name": "channels", "description": "Choose where PinBot posts (leave empty to see the current channels)",
               "options": [
-                { "type": 7, "name": "challenges", "description": "Channel for one-off competition leaderboards", "required": false, "channel_types": [0] },
+                { "type": 7, "name": "challenges", "description": "Channel for challenge leaderboards", "required": false, "channel_types": [0] },
                 { "type": 7, "name": "weekly", "description": "Channel for weekly competition leaderboards", "required": false, "channel_types": [0] },
-                { "type": 7, "name": "info", "description": "Channel for the guide and new-VPin announcements", "required": false, "channel_types": [0] } ] },
+                { "type": 7, "name": "info", "description": "Channel for the guide, new VPins and update news", "required": false, "channel_types": [0] } ] },
             { "type": 1, "name": "weekly", "description": "Automatic weekly competition: on/off and when it starts",
               "options": [
                 { "type": 5, "name": "enabled", "description": "On or off", "required": true },
@@ -108,7 +108,7 @@ public static class Interactions
         var caller = new Caller(user["id"]!.GetValue<string>(),
             member["nick"]?.GetValue<string>() ?? user["global_name"]?.GetValue<string>() ?? user["username"]!.GetValue<string>(),
             ulong.Parse(member["permissions"]?.GetValue<string>() ?? "0", CultureInfo.InvariantCulture));
-        // a button on one of PinBot's replies (type 3): the ◀ / ▶ pages of /pinbot games
+        // a button on one of PinBot's replies (type 3): the ◀ / ▶ pages of /pinbot games, or Start anyway / Cancel
         if (type == 3)
         {
             var id = interaction["data"]?["custom_id"]?.GetValue<string>() ?? "";
@@ -245,7 +245,7 @@ public static class Interactions
                 // in the card's own channel the card (with its 📣 headline) is the announcement: one notification, not two
                 var quiet = fromChannel != null && fromChannel == cardChannel;
                 return Answer($"🎯 **{Md(Players.StripTag(caller.DisplayName))}** started **{Md(c.Competition.Title)}**: ends {Ts(c.Competition.EffectiveEndUtc, "f")} ({Ts(c.Competition.EffectiveEndUtc, "R")}). " +
-                              $"VPins are ready within seconds (the card shows where): play it and enter your tagged initials.{where}", quiet);
+                              $"Connected VPins get it within seconds (the leaderboard shows which are ready). Play it and enter the initials from your server nickname.{where}", quiet);
             case CreateResult.Conflict c:
                 return Answer($"**{Md(c.Existing.Title)}** already has competition #{c.Existing.Id} running until {Ts(c.Existing.EffectiveEndUtc, "f")}.");
             case CreateResult.NotEligible:
@@ -419,8 +419,8 @@ public static class Interactions
             var activity = online ? (playing != null ? " · in a game" : "")
                 : seen is { } ls ? $" · offline {Ts(DateTime.SpecifyKind(ls, DateTimeKind.Utc), "R")}" : " · offline";
             var release = AgentDownload.ReleaseOf(version);
-            var state = version is null ? "version not known yet (sent when PinBot restarts)"
-                : release is null ? $"⚠️ too old to update itself: run {download} once"
+            var state = version is null ? "version not reported yet"
+                : release is null ? $"⚠️ needs a one-time manual update: download and run {download}"
                 : latest is null || release >= latest ? "✅ up to date"
                 : "⏳ updating itself when no table is running";
             sb.AppendLine($"{where} {who}{activity} · {state}");
@@ -497,7 +497,7 @@ public static class Interactions
         return Reply(
             $"**Connect your VPin** with this line (works once, expires {Ts(expires, "R")}):\n```\n{Pairing.PairingLine(discord.PublicUrl, code)}\n```" +
             $"1. On the VPin, download **pinbot.exe**: {download}\n" +
-            "2. Double-click it and paste the line above. If Windows says *unknown publisher*: **More info → Run anyway**.\n" +
+            "2. Double-click it and paste the line above. If Windows warns about it (*unknown publisher* or *Windows protected your PC*): **More info → Run anyway**.\n" +
             "3. Put your initials in your server nickname, e.g. `Name | [ABC]`, and enter them when you get a high score.",
             ephemeral: true);
     }
@@ -512,7 +512,7 @@ public static class Interactions
 
         // nothing runs until a manager has chosen the slot, so the very first weekly is when they want it
         if (on && existing is null && (day is null || time is null || zone is null))
-            return Reply("First set the schedule: include **day**, **time** and **timezone**, e.g. `/pinbot-admin weekly enabled:True day:Monday time:19:00 timezone:Eastern`.", ephemeral: true);
+            return Reply("First set the schedule: include **day**, **time** and **timezone**, e.g. `/pinbot-admin weekly enabled:True day:Monday time:19:00 timezone:Eastern (US/Canada)`.", ephemeral: true);
 
         DayOfWeek dow = default;
         TimeSpan t = default;
@@ -538,16 +538,16 @@ public static class Interactions
         var running = await WeeklyScheduler.RunningAsync(conn, now);
         var current = running is null ? "" : $"\nThe current weekly, **{Md(running.Title)}**, continues until {Ts(running.EffectiveEndUtc, "f")}.";
         if (!on)
-            return Reply($"Weekly competitions are **off**{(schedule is null ? "" : $" (schedule kept: every {schedule})")}.{current}");
+            return Reply($"Weekly competitions are **off**{(schedule is null ? "" : $" (schedule kept: every {schedule})")}.{current}", ephemeral: true);
 
         // nothing running: start one now, whatever the day, so people can play straight away
         if (running is null && await weekly.StartNowAsync(conn, schedule!, now) is { } started)
             return Reply($"📅 Weekly competitions are **on**: a new game every **{schedule}**.\n" +
                          $"The first one starts **now**: **{Md(started.Title)}**, until {Ts(started.EffectiveEndUtc, "F")} ({Ts(started.EffectiveEndUtc, "R")}). " +
-                         "After that the regular schedule takes over.");
+                         "After that the regular schedule takes over.", ephemeral: true);
         var next = await WeeklyScheduler.NextStartAsync(conn, schedule!, now);
         var why = running is null ? "\nNo eligible game is free on a connected VPin right now." : current;
-        return Reply($"📅 Weekly competitions are **on**: a new game every **{schedule}**.{why}\nThe next one starts {Ts(next, "F")} ({Ts(next, "R")}).");
+        return Reply($"📅 Weekly competitions are **on**: a new game every **{schedule}**.{why}\nThe next one starts {Ts(next, "F")} ({Ts(next, "R")}).", ephemeral: true);
     }
 
     // ---------------- autocomplete ----------------

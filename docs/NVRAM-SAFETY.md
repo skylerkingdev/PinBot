@@ -1,6 +1,8 @@
 # NVRAM safety
 
-PinBot changes a table's NVRAM only for a competition, and only with this procedure. Code:
+Your own high scores are backed up and verified before a competition and put back byte-for-byte after it; this page
+explains exactly how, for anyone who wants to check. PinBot changes a table's NVRAM only for a competition, and only
+with this procedure. Code:
 `src/PinBot.Agent/Nvram/NvramCoordinator.cs` (lifecycle) and `src/PinBot.Agent/Scoring/CompetitionImage.cs`
 (competition file).
 

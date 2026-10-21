@@ -18,6 +18,10 @@ public static class Setup
     const string StopEventName = @"Local\PinBot.stop";
 
     public static string InstalledExe => Path.Combine(LocalState.Dir, "pinbot.exe");
+
+    /// <summary>What to do when something needs a person: the same words wherever PinBot says it.</summary>
+    public const string ReportHint = "Run 'pinbot report' and attach the zip from your desktop to a bug report: " +
+                                     "https://github.com/skylerkingdev/PinBot/issues/new/choose (or give it to your server's admin).";
     public static string StartupShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "PinBot.lnk");
     /// <summary>Start menu entry: opens pinbot.exe without arguments, which shows the status.</summary>
     public static string MenuShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "PinBot.lnk");
@@ -63,7 +67,7 @@ public static class Setup
             File.WriteAllLines(CrashLog, recent.Select(t => t.ToString("O")));
             if (recent.Count >= 3)
             {
-                Log.Error("PinBot crashed 3 times in 10 minutes and is not restarting itself; it starts again at the next Windows login. Please send the logs.");
+                Log.Error("PinBot crashed 3 times in 10 minutes and is not restarting itself; it starts again at the next Windows login. " + ReportHint);
                 return;
             }
             Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "watch --minimized --after-crash") { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Minimized });

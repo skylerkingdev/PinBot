@@ -21,7 +21,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp => ServerOptions.From(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton(sp => new Db(sp.GetRequiredService<IConfiguration>().GetConnectionString("PinBot")
     ?? throw new InvalidOperationException("ConnectionStrings:PinBot is not configured")));
-// Discord: env vars PinBot__Discord__ApplicationId / PublicKey / BotToken / GuildId / ChannelId, PinBot__PublicUrl,
+// Discord: env vars PinBot__Discord__ApplicationId / PublicKey / BotToken / GuildId / ChannelId / WeeklyChannelId, PinBot__PublicUrl.
 // Without them the server runs without Discord (agent API only). The weekly schedule and channels are set from Discord (/pinbot-admin).
 builder.Services.AddSingleton(sp => DiscordOptions.From(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton<IDiscordApi>(sp => new DiscordRestApi(sp.GetRequiredService<DiscordOptions>()));
@@ -50,7 +50,7 @@ await using (var conn = await app.Services.GetRequiredService<Db>().OpenAsync())
 app.UseRateLimiter();
 // the release lets the updater confirm a new server really runs (null: a development build)
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok", release = AgentDownload.LatestRelease() }));
-// the cabinet agent, built into the image by publish.ps1, so /pinbot pair can link to it
+// the VPin agent, put into the image by the release workflow, so /pinbot pair can link to it
 app.MapGet(AgentDownload.Route, () => File.Exists(AgentDownload.Path)
     ? Results.File(AgentDownload.Path, "application/vnd.microsoft.portable-executable", "pinbot.exe")
     : Results.NotFound());

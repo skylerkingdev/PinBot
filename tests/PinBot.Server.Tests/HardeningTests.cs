@@ -94,6 +94,15 @@ public class HardeningTests
     }
 
     [Fact]
+    public async Task Healthz_reports_the_release_the_updater_waits_for()
+    {
+        await using var s = await TestServer.StartAsync();
+        var health = await s.Client().GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("/healthz");
+        Assert.Equal("ok", health!["status"]!.GetValue<string>());
+        Assert.True(health.ContainsKey("release")); // null in a development build; the release number in a release
+    }
+
+    [Fact]
     public void Background_loops_pause_after_a_failure()
     {
         Assert.Equal(DiscordBackground.FailurePause, DiscordBackground.PauseAfter(TimeSpan.Zero, failed: true));

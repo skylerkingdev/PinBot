@@ -2,54 +2,72 @@
 
 Automated virtual pinball high-score competitions for your Discord community.
 
-Turn on your VPin and play. If a competition is running on that game, your score shows up on the Discord
-leaderboard. Nobody signs up or joins: PinBot reads the high scores from the game itself and matches your initials
-to your Discord nickname.
+Turn on your VPin and play. If a competition is running on that game, your score appears on the Discord leaderboard:
+PinBot reads the high scores from the game itself and matches your initials to your server nickname.
 
-Automatic from end to end:
-
-- **Joining:** nobody signs up. Your initials in your Discord nickname, e.g. `Name | [ABC]`, are enough.
+- **Joining:** nobody signs up. Your initials in your server nickname, e.g. `Name | [ABC]`, are enough.
 - **Scores:** read from the game after each play. No screenshots, no forms.
 - **Setup:** paste one line on the VPin. PinBot finds Visual Pinball X and your tables by itself.
-- **Updates:** the server and every VPin install new signed releases by themselves. Nothing to maintain.
+- **Updates:** the PinBot server and every VPin install new signed releases by themselves. Nothing to maintain.
 
-Your own high scores are backed up before a competition and restored byte-for-byte after it
+Your own high scores are backed up before a competition and put back exactly as they were after it
 ([how](docs/NVRAM-SAFETY.md)). PinBot uses about 20 MB of memory and sleeps while a table runs.
 
-A VPin is any Windows PC with Visual Pinball X: desktop, laptop or cabinet. PinBot works with ROM-based tables.
-The PinBot server runs in Docker and is hosting-agnostic. Self-host it on your own hardware with no hosting fees, or
-deploy it to a compatible cloud provider.
+<img src="docs/images/leaderboard.png" alt="A finished challenge's leaderboard card in Discord: Batman Dark Knight, with Alex first, Sam second and Jo third" width="600">
 
-## Setup
+<img src="docs/images/takes-the-lead.png" alt="PinBot's posts as the lead changes hands: Sam takes the lead, then Alex takes it back, pinging Sam" width="800">
 
-1. **Server:** [run it on a Synology NAS](docs/DEPLOY-NAS.md) or any Docker host.
-2. **Discord:** [connect the bot to your server](docs/DISCORD-SETUP.md) (about 15 minutes).
-3. **VPins:** each player does this once:
-   1. In Discord, run `/pinbot pair`. You get a download link and a one-time pairing line.
-   2. Run `pinbot.exe` on the VPin. If Windows warns about an unknown publisher: **More info → Run anyway**.
-   3. Paste the line and press Enter. PinBot installs itself and starts with Windows.
-   4. Add your initials to your Discord nickname, e.g. `Name | [ABC]`.
+## Join a competition (VPin owners)
+
+1. In your Discord server, run `/pinbot pair`. Only you see the reply: a link to download `pinbot.exe` and a one-time
+   pairing line.
+2. Run `pinbot.exe` on your VPin. If Windows warns about it (*unknown publisher* or *Windows protected your PC*), choose
+   **More info → Run anyway**.
+3. Paste the line and press Enter. PinBot installs itself and starts with Windows.
+4. Put your initials in your server nickname, e.g. `Name | [ABC]`, and enter them on the machine when you get a high
+   score.
+
+More: [On your VPin](docs/VPIN.md) (troubleshooting, uninstalling) and [How competitions work](docs/PLAYING.md).
+
+## Set up PinBot for your Discord server (admins)
+
+About 45 minutes, once:
+
+1. [Run the PinBot server](docs/DEPLOY-NAS.md) on a Synology NAS or any always-on Docker host.
+2. [Connect it to Discord](docs/DISCORD-SETUP.md): create the Discord app and choose PinBot's channels.
+3. Invite your members to run `/pinbot pair`.
+
+## Requirements and limits
+
+- **VPin:** Windows 10 or 11 with Visual Pinball X. Only ROM-based (PinMAME) tables whose ROM has a memory map; original
+  and EM tables can't be used. A game counts once you exit the table.
+- **Server:** an always-on Docker host (a Synology NAS guide is included) and a free Tailscale account, which gives it a
+  public HTTPS address without opening router ports.
+- **Discord:** *Manage Server* rights on your Discord server, for the setup.
+- **Trust:** scores are read on each owner's own PC, so PinBot is for friendly communities, not prize tournaments.
 
 ## Commands
 
-| Command | |
+| Command | What it does |
 |---|---|
-| `/pinbot start` | Start a competition on a game (1 hour to 7 days) |
-| `/pinbot status` | Running competitions, leaders and VPins |
-| `/pinbot games` | Games you can start a competition on |
-| `/pinbot guest` | Let a guest score with their own initials for 24 hours |
-| `/pinbot end` | End a competition early |
-| `/pinbot pair` | Connect a VPin |
-| `/pinbot-admin weekly` | Automatic weekly competition |
-| `/pinbot-admin channels` | Where PinBot posts |
+| `/pinbot start` | Start a challenge on a game, from 1 hour to 7 days |
+| `/pinbot status` | What's running, who leads, and each VPin |
+| `/pinbot games` | Every game you can start a challenge on |
+| `/pinbot end` | End a challenge you started |
+| `/pinbot guest` | Let a friend without Discord score with their own initials for 24 hours |
+| `/pinbot pair` | Connect your VPin |
+| `/pinbot help` | How PinBot works |
+| `/pinbot-admin weekly` | Server managers: the automatic weekly competition |
+| `/pinbot-admin channels` | Server managers: where PinBot posts |
 
 ## Documentation
 
-- [On the VPin](docs/VPIN.md): commands, tables, files, uninstalling
-- [Server](docs/SERVER.md): configuration, API, releases
-- [NVRAM safety](docs/NVRAM-SAFETY.md)
-- [Security](SECURITY.md)
-- [Code signing policy](docs/CODE-SIGNING.md)
+- **Players:** [On your VPin](docs/VPIN.md), [How competitions work](docs/PLAYING.md),
+  [How your high scores are kept safe](docs/NVRAM-SAFETY.md)
+- **Admins:** [Run the PinBot server](docs/DEPLOY-NAS.md), [Connect it to Discord](docs/DISCORD-SETUP.md),
+  [Security](SECURITY.md)
+- **Developers:** [Development](docs/DEVELOPMENT.md), [Server reference](docs/SERVER.md),
+  [Code signing policy](docs/CODE-SIGNING.md)
 
 ## Code signing policy
 
@@ -60,18 +78,8 @@ with. Details: [CODE-SIGNING.md](docs/CODE-SIGNING.md).
 
 ## Development
 
-Requires the .NET 10 SDK. More in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
-```bash
-git submodule update --init
-```
-
-```bash
-dotnet test
-```
-
-Every push to `master` that passes CI becomes a signed release
-([how](docs/SERVER.md#releases-and-vpin-auto-update)).
+Requires Windows and the .NET 10 SDK; the server tests also need PostgreSQL. See [DEVELOPMENT.md](docs/DEVELOPMENT.md).
+Issues and pull requests are welcome.
 
 ## License
 

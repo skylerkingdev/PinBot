@@ -1,6 +1,6 @@
 # PinBot server on a NAS / home server: server + PostgreSQL + Tailscale Funnel (public HTTPS, no open router ports)
 # + nightly database backups + the updater, which keeps the server on the signed releases published on GitHub.
-# Secrets go in .env next to this file (copy .env.example). Start everything with:  docker compose up -d
+# Secrets go in .env next to this file (make-env.ps1 writes it; or copy .env.example). Start with:  docker compose up -d
 name: pinbot
 
 services:
@@ -27,7 +27,6 @@ services:
     restart: unless-stopped
     environment:
       PINBOT_UPDATE_RING: ${PINBOT_UPDATE_RING:-stable}
-      PINBOT_UPDATE_TOKEN: ${PINBOT_UPDATE_TOKEN:-}
       PINBOT_UPDATER_IMAGE: ghcr.io/skylerkingdev/pinbot-updater:latest
       PINBOT_SERVER_IMAGE: ghcr.io/skylerkingdev/pinbot-server:latest
     volumes:
@@ -59,7 +58,7 @@ services:
     volumes:
       - ./data/updater:/updater:ro
     ports:
-      # LAN only (your router does not forward it): admin API and LAN cabinets use http://<NAS-IP>:5080
+      # LAN only (your router does not forward it): the optional admin API and VPins on your LAN use http://<NAS-IP>:5080
       - "5080:8080"
 
   tailscale:

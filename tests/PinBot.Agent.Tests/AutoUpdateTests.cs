@@ -16,7 +16,7 @@ public class AutoUpdateTests
 
         Assert.True(UpdateSigning.Verify(m, pub));
         Assert.True(UpdateSigning.Matches(m, Exe));
-        Assert.False(UpdateSigning.Verify(m, otherPub));                         // another community's key
+        Assert.False(UpdateSigning.Verify(m, otherPub));                         // another key
         Assert.False(UpdateSigning.Verify(m with { Version = m.Version + 1 }, pub)); // version changed after signing
         Assert.False(UpdateSigning.Verify(m with { Sha256 = new string('0', 64) }, pub)); // different exe claimed
         var tampered = (byte[])Exe.Clone();

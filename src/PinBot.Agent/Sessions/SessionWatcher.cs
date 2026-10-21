@@ -264,8 +264,10 @@ public sealed partial class SessionWatcher(
             var state = e?.State switch
             {
                 Nvram.CompState.Ready => (CompetitionStates.Ready, (string?)null),
-                Nvram.CompState.Refused or Nvram.CompState.NeedsRecovery => (CompetitionStates.Refused, e.Problem ?? "competition file could not be prepared"),
-                _ => (CompetitionStates.Waiting, MayTouch(c.NvPath) ? "preparing" : "its table is running"),
+                // shown on the leaderboard card to everyone: what it means for them; the technical reason stays in this PC's log
+                Nvram.CompState.Refused => (CompetitionStates.Refused, "this table's ROM can't be used for competitions yet"),
+                Nvram.CompState.NeedsRecovery => (CompetitionStates.Refused, "needs a check on that VPin (pinbot status)"),
+                _ => (CompetitionStates.Waiting, MayTouch(c.NvPath) ? "preparing" : "being played right now"),
             };
             // a cabinet with several revisions of the game is ready once one of them is
             if (!states.TryGetValue(id, out var have) || state.Item1 == CompetitionStates.Ready || have.State != CompetitionStates.Ready && state.Item1 == CompetitionStates.Waiting)
@@ -656,8 +658,8 @@ public sealed partial class SessionWatcher(
         });
         _tickSoon = true;
         Log.Error($"[{s.Id}] {o.Rom} reset its high scores on the competition file: it is no longer offered for competitions on this " +
-                  $"VPin, and your own high scores are put back once no table is running. Please send the folder {dir} " +
-                  "to the PinBot maintainer so a fix can be made.");
+                  $"VPin, and your own high scores are put back once no table is running. The files needed to fix it are in {dir}. " +
+                  Setup.ReportHint);
         _inventorySent = false;      // the server learns the ROM is not eligible here
         _nextSync = DateTime.MinValue; // at once
     }

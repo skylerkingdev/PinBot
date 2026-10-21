@@ -24,7 +24,7 @@ public class ReleaseTests
         Assert.False(UpdateSigning.VerifyServer(r with { ServerImage = "ghcr.io/evil/pinbot-server@sha256:aa" }, pub));
         Assert.False(UpdateSigning.VerifyServer(r with { UpdaterImage = "ghcr.io/x/pinbot-updater@sha256:cc" }, pub));
         Assert.False(UpdateSigning.VerifyServer(r with { Version = 20991231000000 }, pub));
-        Assert.False(UpdateSigning.VerifyServer(r, UpdateSigning.NewKey().PublicBase64)); // another community's key
+        Assert.False(UpdateSigning.VerifyServer(r, UpdateSigning.NewKey().PublicBase64)); // another key
         Assert.True(UpdateSigning.VerifyServer(r with { Notes = ["edited"] }, pub));     // notes are only shown on GitHub
     }
 
@@ -131,7 +131,8 @@ public class ReleaseTests
         await info.RunOnceAsync();
         await info.RunOnceAsync();
         Assert.Equal(2, Notices().Count);
-        Assert.Contains("⏭️ The PinBot release of 22 Oct 2026, 09:00 UTC was **skipped** on this server (the server did not start with it)", Notices()[^1]);
+        Assert.Contains("⏭️ A PinBot update (release of 22 Oct 2026, 09:00 UTC) didn't start correctly on this server, so it was **skipped**", Notices()[^1]);
+        Assert.DoesNotContain("did not start with it", Notices()[^1]); // the updater's reason stays in its log
 
         Release(20261020100000); // back on an older one
         await info.RunOnceAsync();

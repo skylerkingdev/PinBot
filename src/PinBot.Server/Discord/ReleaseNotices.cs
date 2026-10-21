@@ -89,8 +89,9 @@ public static class ReleaseNotices
               "Competitions carry on as before.");
 
     public static JsonObject Skipped(RefusedRelease r, long running) =>
-        Plain($"⏭️ The PinBot release of {When(r.Version)} was **skipped** on this server ({r.Reason.TrimEnd('.')}). " +
-              $"It stays on the release of {When(running)}; competitions carry on as before.");
+        // the updater's reason stays in its log: players only need to know nothing changed for them
+        Plain($"⏭️ A PinBot update (release of {When(r.Version)}) didn't start correctly on this server, so it was **skipped**. " +
+              $"PinBot stays on the release of {When(running)}; competitions carry on as before.");
 
     static JsonObject Plain(string text) => new()
     {

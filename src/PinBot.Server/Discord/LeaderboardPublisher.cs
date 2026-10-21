@@ -109,7 +109,7 @@ public sealed class LeaderboardPublisher(Db db, IDiscordApi api, DiscordOptions 
         return new JsonObject
         {
             ["content"] = $"⏰ **{Interactions.Md(c.Title)}** ends {Interactions.Ts(c.EffectiveEndUtc, "R")}: time for one more game. " +
-                          $"It counts if it is finished (VPX closed) by {Interactions.Ts(c.EffectiveEndUtc, "t")}. {leader}{link}",
+                          $"A game counts if you've exited the table by {Interactions.Ts(c.EffectiveEndUtc, "t")}. {leader}{link}",
             ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() },
         };
     }
@@ -378,7 +378,7 @@ public sealed class LeaderboardPublisher(Db db, IDiscordApi api, DiscordOptions 
                 ["title"] = $"🏆 {c.Title}",
                 ["description"] = sb.ToString().TrimEnd(),
                 ["color"] = status switch { "active" => 0x2ECC71, "finalizing" => 0xF1C40F, "complete" => 0x3498DB, _ => 0x95A5A6 },
-                ["footer"] = new JsonObject { ["text"] = $"Competition #{c.Id} · Scores count when you enter initials from your nickname tag, e.g. Name | [ABC]" },
+                ["footer"] = new JsonObject { ["text"] = $"Competition #{c.Id} · Enter the initials from your server nickname, e.g. Name | [ABC]" },
             }),
         };
     }

@@ -128,6 +128,7 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
         var state = LocalState.Load();
         if (state.Server is null)
         {
+            string? name = null;
             while (true)
             {
                 Log.Out("In Discord, run /pinbot pair. Paste the line it gives you here and press Enter:");
@@ -136,10 +137,12 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
                 if (line is null) return 1;
                 if (Setup.ParsePairingLine(line) is not { } p)
                 {
-                    Log.Warn("That isn't the line from /pinbot pair (it looks like https://.../pair/ABCDE-FGHIJ). Try again.");
+                    Log.Warn("That isn't the line from /pinbot pair (it looks like https://.../pair/ABCDE-FGHJK). Try again.");
                     continue;
                 }
-                if (await Setup.PairAsync(p.Url, p.Code, Environment.MachineName)) break;
+                // shown on leaderboards and in /pinbot status next to the owner's initials
+                name ??= AskName();
+                if (await Setup.PairAsync(p.Url, p.Code, name)) break;
             }
             Log.Out();
         }
@@ -177,6 +180,23 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
         using var sa = fa.OpenRead();
         using var sb = fb.OpenRead();
         return System.Security.Cryptography.SHA256.HashData(sa).AsSpan().SequenceEqual(System.Security.Cryptography.SHA256.HashData(sb));
+    }
+
+    /// <summary>"20261021004511" -> "21 Oct 2026, 00:45 UTC", as releases are titled on GitHub and in Discord.</summary>
+    internal static string ReleaseDate(long release) =>
+        DateTime.TryParseExact(release.ToString(System.Globalization.CultureInfo.InvariantCulture), "yyyyMMddHHmmss",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var t)
+            ? t.ToString("d MMM yyyy, HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture) : "unknown date";
+
+    // The name others see for this VPin; Enter keeps the Windows PC name.
+    static string AskName()
+    {
+        var pc = Environment.MachineName;
+        Log.Out($"Name this VPin as others will see it, e.g. Game room (press Enter to keep '{pc}'):");
+        Console.Write("> ");
+        var typed = Console.ReadLine()?.Trim();
+        return typed is { Length: > 0 and <= 100 } ? typed : pc;
     }
 
     static int Pause(int code)
@@ -223,7 +243,7 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
     {
         var state = LocalState.Load();
         Log.Out(PinBot.Agent.Sync.AutoUpdate.Enabled
-            ? $"version:    release {PinBot.Agent.Sync.AutoUpdate.Version} (updates itself from the server)"
+            ? $"version:    release {PinBot.Agent.Sync.AutoUpdate.Version} ({ReleaseDate(PinBot.Agent.Sync.AutoUpdate.Version)}; updates itself from the server)"
             : "version:    development build (does not update itself)");
         Log.Out(state.Server is { } s ? $"server:     {s.Url} (VPin {s.CabinetId})" : "server:     not paired (run pinbot and paste the line from /pinbot pair)");
         Log.Out($"running:    {(Setup.IsWatching() ? "yes" : "no")}");
@@ -233,7 +253,7 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
         Log.Out($"to upload:  {(waiting == 0 ? "nothing" : $"{waiting} result(s) waiting for the server")}");
         Log.Out($"files:      {LocalState.Dir}  (logs in {Log.LogDir})");
         foreach (var (rom, r) in state.RejectedRoms.Where(kv => RejectedRom.Applies(state, kv.Key, PinBot.Agent.Sync.AutoUpdate.Version)))
-            Log.Warn($"not offered: {rom} reset its high scores on a competition file {r.AtUtc.ToLocalTime():yyyy-MM-dd HH:mm}; please send {r.Evidence}");
+            Log.Warn($"not offered: {rom} reset its high scores on a competition file {r.AtUtc.ToLocalTime():yyyy-MM-dd HH:mm} (the files to fix it are in {r.Evidence}). {Setup.ReportHint}");
         Log.Out();
         return ListCompetitions();
     }
@@ -303,7 +323,7 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
                         $"Windows {Environment.OSVersion.Version}, {Environment.ProcessorCount} CPUs\nwatching: {Setup.IsWatching()}\n");
         }
         Log.Good($"Report saved: {zipPath}");
-        Log.Out("Send this file to whoever asked for it (it holds logs and high scores, no passwords).");
+        Log.Out("Attach it to a bug report (https://github.com/skylerkingdev/PinBot/issues/new/choose) or give it to your server's admin. It holds logs and high scores, never your server credential.");
         return 0;
     }
 }
