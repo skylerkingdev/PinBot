@@ -1,0 +1,1494 @@
+{
+  "_fileformat": 0.9,
+  "adjustments": {
+    "A.1 Standard Adjustments": {
+      "01": {
+        "label": "Balls Per Game",
+        "value": 3
+      },
+      "02": {
+        "label": "Tilt Warnings",
+        "value": 3
+      },
+      "03": {
+        "label": "Max E.B Count",
+        "value": 4
+      },
+      "04": {
+        "label": "Max E.B Per B.I.P",
+        "value": "OFF"
+      },
+      "05": {
+        "label": "Replay System",
+        "value": "Auto %"
+      },
+      "06": {
+        "label": "Replay Percent",
+        "value": 10
+      },
+      "07": {
+        "label": "Replay Start",
+        "value": 200
+      },
+      "08": {
+        "label": "Replay Levels",
+        "value": 1
+      },
+      "13": {
+        "label": "Replay Boost",
+        "value": 50
+      },
+      "14": {
+        "label": "Replay Award",
+        "value": "Credit"
+      },
+      "15": {
+        "label": "Special Award",
+        "value": "Credit"
+      },
+      "16": {
+        "label": "Match Award",
+        "value": "Credit"
+      },
+      "17": {
+        "label": "Ex. Ball Ticket",
+        "value": "NO"
+      },
+      "18": {
+        "label": "Max. Tick,/Player",
+        "value": 25
+      },
+      "19": {
+        "label": "Match Feature",
+        "value": 10
+      },
+      "20": {
+        "label": "Custom Message",
+        "value": "ON"
+      },
+      "21": {
+        "label": "Language",
+        "value": "English"
+      },
+      "22": {
+        "label": "Clock Style",
+        "value": "AM/PM"
+      },
+      "23": {
+        "label": "Date Style",
+        "value": "Mmm. DD YY"
+      },
+      "24": {
+        "label": "Show Time + Date",
+        "value": "NO"
+      },
+      "25": {
+        "label": "Allow Dm. Illum",
+        "value": "YES"
+      },
+      "26": {
+        "label": "Tournament Play",
+        "value": "NO"
+      },
+      "27": {
+        "label": "Euro. Scr Format",
+        "value": "NO"
+      },
+      "28": {
+        "label": "Min. Vol. Override",
+        "value": "NO"
+      },
+      "29": {
+        "label": "GI Power Saver",
+        "value": 15
+      },
+      "30": {
+        "label": "Power Save Level",
+        "value": 5
+      },
+      "31": {
+        "label": "Ticket Exp. Board",
+        "value": "NO"
+      },
+      "32": {
+        "label": "No Bonus Flips",
+        "value": "NO"
+      },
+      "33": {
+        "label": "Game Restart",
+        "value": "SLOW"
+      }
+    },
+    "A.2 Feature Adjustments": {
+      "01": {
+        "label": "Ball  Time",
+        "value": 35
+      },
+      "02": {
+        "label": "Auto. %Special&Match",
+        "value": "YES"
+      },
+      "03": {
+        "label": "Ball Saver",
+        "value": 2
+      },
+      "04": {
+        "label": "Auto. Ex.Ball",
+        "value": 20
+      },
+      "05": {
+        "label": "1st ExB. Lit At",
+        "value": 8
+      },
+      "06": {
+        "label": "Next ExB. Lit At",
+        "value": 16
+      },
+      "07": {
+        "label": "V.Mode ExBall At",
+        "value": 2
+      },
+      "08": {
+        "label": "Volume Change",
+        "value": "YES"
+      },
+      "09": {
+        "label": "Pre-lite V.Mode",
+        "value": "NONE"
+      },
+      "10": {
+        "label": "V.Mode Award",
+        "value": "NONE"
+      },
+      "11": {
+        "label": "Bonus 'X' Memory",
+        "value": "YES"
+      },
+      "12": {
+        "label": "Castle Lock Time",
+        "value": 15
+      },
+      "13": {
+        "label": "Castle Jackpot",
+        "value": 20
+      },
+      "14": {
+        "label": "Jet Timer",
+        "value": 10
+      },
+      "15": {
+        "label": "Pre-lite Coffin",
+        "value": "NONE"
+      },
+      "16": {
+        "label": "Coffin Ramp Time",
+        "value": 15
+      },
+      "17": {
+        "label": "Left Ramp Time",
+        "value": 10
+      },
+      "18": {
+        "label": "Mystery Time",
+        "value": 5
+      },
+      "19": {
+        "label": "Mystery Pre-Lit",
+        "value": "Game Start"
+      },
+      "20": {
+        "label": "Myst:Castle Lock",
+        "value": 10
+      },
+      "21": {
+        "label": "Myst:Coffin Lock",
+        "value": 10
+      },
+      "22": {
+        "label": "Myst:V.Mode Lit",
+        "value": 10
+      },
+      "23": {
+        "label": "Myst:Bonus",
+        "value": 25
+      },
+      "24": {
+        "label": "Video Mode Diff.",
+        "value": "Medium"
+      },
+      "25": {
+        "label": "1st Loop Bonus",
+        "value": 6
+      },
+      "26": {
+        "label": "Other Loop Bonus",
+        "value": 6
+      },
+      "27": {
+        "label": "1st Mist M.B. Lit",
+        "value": 5
+      },
+      "28": {
+        "label": "Other Mist M.B",
+        "value": 10
+      },
+      "29": {
+        "label": "1st Bats",
+        "value": 3
+      },
+      "30": {
+        "label": "Other Bats",
+        "value": 10
+      },
+      "31": {
+        "label": "Bats Time",
+        "value": 15
+      },
+      "32": {
+        "label": "Number of Bats",
+        "value": 15
+      },
+      "33": {
+        "label": "Outlane Lit at",
+        "value": 15
+      },
+      "34": {
+        "label": "1st Rats At",
+        "value": 3
+      },
+      "35": {
+        "label": "Next Rats At",
+        "value": 5
+      },
+      "36": {
+        "label": "Number of Rats",
+        "value": 15
+      },
+      "37": {
+        "label": "Rats Timer",
+        "value": 15
+      },
+      "38": {
+        "label": "Timed Plunger",
+        "value": "OFF"
+      },
+      "39": {
+        "label": "Flipped Plunger",
+        "value": "NO"
+      },
+      "40": {
+        "label": "Fancy A. Mode G.I",
+        "value": "YES"
+      },
+      "41": {
+        "label": "Attr. Mode Sounds",
+        "value": "NONE"
+      },
+      "42": {
+        "label": "Magnet",
+        "value": "Enabled"
+      },
+      "43": {
+        "label": "Family Mode",
+        "value": "NO"
+      },
+      "44": {
+        "label": "Game Over Unlock",
+        "value": "NO"
+      }
+    }
+  },
+  "audits": {
+    "B.2 EARNINGS AUDS.": {
+      "02": {
+        "label": "RECENT LEFT SLOT",
+        "value": 0
+      },
+      "03": {
+        "label": "RECENT CENT. SLOT",
+        "value": 35
+      },
+      "04": {
+        "label": "RECENT RGHT. SLOT",
+        "value": 22
+      },
+      "05": {
+        "label": "RECENT 4TH SLOT",
+        "value": 0
+      },
+      "06": {
+        "label": "RECENT PAID CRED",
+        "value": 28
+      },
+      "07": {
+        "label": "RECENT SERV. CRED",
+        "value": 0
+      },
+      "09": {
+        "label": "TOTAL LEFT SLOT",
+        "value": 0
+      },
+      "10": {
+        "label": "TOTAL CENTR. SLOT",
+        "value": 35
+      },
+      "11": {
+        "label": "TOTAL RIGHT SLOT",
+        "value": 22
+      },
+      "12": {
+        "label": "TOTAL 4TH SLOT",
+        "value": 0
+      },
+      "13": {
+        "label": "TOTAL PAID CRED.",
+        "value": 28
+      },
+      "14": {
+        "label": "TOTAL SERV. CRED.",
+        "value": 0
+      }
+    },
+    "B.3 STANDARD AUDS.": {
+      "01": {
+        "label": "GAMES STARTED",
+        "value": 18
+      },
+      "02": {
+        "label": "TOTAL PLAYS",
+        "value": 6
+      },
+      "03": {
+        "label": "TOTAL FREE PLAYS",
+        "value": 0
+      },
+      "05": {
+        "label": "REPLAY AWARDS",
+        "value": 0
+      },
+      "07": {
+        "label": "SPECIAL AWARDS",
+        "value": 0
+      },
+      "09": {
+        "label": "MATCH AWARDS",
+        "value": 0
+      },
+      "11": {
+        "label": "H.S.T.D. CREDITS",
+        "value": 0
+      },
+      "13": {
+        "label": "EXTRA BALLS",
+        "value": 0
+      },
+      "15": {
+        "label": "TICKETS AWARDED",
+        "value": 0
+      },
+      "17": {
+        "label": "LEFT DRAINS",
+        "value": 3
+      },
+      "18": {
+        "label": "RIGHT DRAINS",
+        "value": 2
+      },
+      "21": {
+        "label": "PLAY TIME",
+        "units": "seconds",
+        "value": 300
+      },
+      "22": {
+        "label": "MINUTES ON",
+        "value": 30
+      },
+      "23": {
+        "label": "BALLS PLAYED",
+        "value": 18
+      },
+      "24": {
+        "label": "TILTS",
+        "value": 0
+      },
+      "25": {
+        "label": "REPLAY 1 AWARDS",
+        "value": 0
+      },
+      "26": {
+        "label": "REPLAY 2 AWARDS",
+        "value": 0
+      },
+      "27": {
+        "label": "REPLAY 3 AWARDS",
+        "value": 0
+      },
+      "28": {
+        "label": "REPLAY 4 AWARDS",
+        "value": 0
+      },
+      "29": {
+        "label": "1 PLAYER GAMES",
+        "value": 1
+      },
+      "30": {
+        "label": "2 PLAYER GAMES",
+        "value": 0
+      },
+      "31": {
+        "label": "3 PLAYER GAMES",
+        "value": 0
+      },
+      "32": {
+        "label": "4 PLAYER GAMES",
+        "value": 0
+      },
+      "33": {
+        "label": "H.S.T.D. RESET COUNT",
+        "value": 2994
+      },
+      "34": {
+        "label": "BURN-IN TIME",
+        "units": "seconds",
+        "value": 0
+      },
+      "36": {
+        "label": "LEFT FLIPPER",
+        "value": 238
+      },
+      "37": {
+        "label": "RIGHT FLIPPER",
+        "value": 242
+      }
+    },
+    "B.4 FEATURE AUDS.": {
+      "01": {
+        "label": "Outlane Lit",
+        "value": 0
+      },
+      "02": {
+        "label": "Outlane Special",
+        "value": 0
+      },
+      "03": {
+        "label": "Outlane Ex.Ball",
+        "value": 0
+      },
+      "04": {
+        "label": "Loop Ex.Ball Lit",
+        "value": 0
+      },
+      "05": {
+        "label": "V.Mode Ex. Ball",
+        "value": 0
+      },
+      "06": {
+        "label": "Mystery Ex. Ball",
+        "value": 1
+      },
+      "07": {
+        "label": "All Locks",
+        "value": 0
+      },
+      "08": {
+        "label": "All Multiballs",
+        "value": 0
+      },
+      "09": {
+        "label": "Mist M.Ball, Tot.",
+        "value": 0
+      },
+      "10": {
+        "label": "Mist M.Ball, 1st",
+        "value": 0
+      },
+      "11": {
+        "label": "Castle M.Ball, Tot.",
+        "value": 0
+      },
+      "12": {
+        "label": "Castle M.Ball, 1st",
+        "value": 0
+      },
+      "13": {
+        "label": "Coffin M.Ball, Tot.",
+        "value": 0
+      },
+      "14": {
+        "label": "Coffin M.Ball, 1st",
+        "value": 0
+      },
+      "15": {
+        "label": "Bonus X's",
+        "value": 5
+      },
+      "16": {
+        "label": "Altars, Total",
+        "value": 5
+      },
+      "17": {
+        "label": "Altars, 1st",
+        "value": 2
+      },
+      "18": {
+        "label": "Altars, 2nd",
+        "value": 1
+      },
+      "19": {
+        "label": "Altars, 3rd",
+        "value": 1
+      },
+      "20": {
+        "label": "Altars, 4th",
+        "value": 1
+      },
+      "21": {
+        "label": "Altars, 5th",
+        "value": 0
+      },
+      "22": {
+        "label": "Rat mode, Total",
+        "value": 1
+      },
+      "23": {
+        "label": "Rat mode, 1st",
+        "value": 1
+      },
+      "24": {
+        "label": "Loops, Total",
+        "value": 1
+      },
+      "25": {
+        "label": "Loops, 1st",
+        "value": 1
+      },
+      "26": {
+        "label": "Loops, 2nd",
+        "value": 0
+      },
+      "27": {
+        "label": "Loops, 3rd",
+        "value": 0
+      },
+      "28": {
+        "label": "Loops, 4th",
+        "value": 0
+      },
+      "29": {
+        "label": "Loops, 5th",
+        "value": 0
+      },
+      "30": {
+        "label": "Bat mode, Total",
+        "value": 0
+      },
+      "31": {
+        "label": "Bat mode, 1st",
+        "value": 0
+      },
+      "32": {
+        "label": "Mystery, Total",
+        "value": 5
+      },
+      "33": {
+        "label": "Mystery, 1st",
+        "value": 5
+      },
+      "34": {
+        "label": "Video Mode, Total",
+        "value": 0
+      },
+      "35": {
+        "label": "Video Mode, 1st",
+        "value": 0
+      },
+      "36": {
+        "label": "Video Modes, Won",
+        "value": 0
+      },
+      "37": {
+        "label": "Video Modes, Lost",
+        "value": 0
+      },
+      "38": {
+        "label": "Balls Saved",
+        "value": 4
+      },
+      "39": {
+        "label": "Magnet Faults",
+        "value": 0
+      },
+      "40": {
+        "label": "T.R. Ramp Faults",
+        "value": 0
+      },
+      "41": {
+        "label": "Other Sw. Faults",
+        "value": 0
+      },
+      "42": {
+        "label": "2X Multi-M.Balls",
+        "value": 0
+      },
+      "43": {
+        "label": "3X Multi-M.Balls",
+        "value": 0
+      },
+      "44": {
+        "label": "Mist M.B. Attempts",
+        "value": 1
+      }
+    },
+    "B.5 HISTOGRAMS": {
+      "01": {
+        "label": "0-1.9 M. SCORE",
+        "value": 0
+      },
+      "02": {
+        "label": "2-4.9 M. SCORE",
+        "value": 0
+      },
+      "03": {
+        "label": "5-9.9 M. SCORE",
+        "value": 1
+      },
+      "04": {
+        "label": "10-19 M. SCORE",
+        "value": 0
+      },
+      "05": {
+        "label": "20-29 M. SCORE",
+        "value": 0
+      },
+      "06": {
+        "label": "30-39 M. SCORE",
+        "value": 0
+      },
+      "07": {
+        "label": "40-49 M. SCORE",
+        "value": 0
+      },
+      "08": {
+        "label": "50-69 M. SCORE",
+        "value": 0
+      },
+      "09": {
+        "label": "70-99 M. SCORE",
+        "value": 0
+      },
+      "10": {
+        "label": "100-149 M. SCORE",
+        "value": 0
+      },
+      "11": {
+        "label": "150-199 M. SCORE",
+        "value": 0
+      },
+      "12": {
+        "label": "200-299 M. SCORE",
+        "value": 0
+      },
+      "13": {
+        "label": "OVER 300 MILLION",
+        "value": 0
+      },
+      "14": {
+        "label": "GAME TIME 0.0-1.0M",
+        "value": 0
+      },
+      "15": {
+        "label": "GAME TIME 1.0-1.5M",
+        "value": 1
+      },
+      "16": {
+        "label": "GAME TIME 1.5-2.0M",
+        "value": 0
+      },
+      "17": {
+        "label": "GAME TIME 2.0-2.5M",
+        "value": 0
+      },
+      "18": {
+        "label": "GAME TIME 2.5-3.0M",
+        "value": 0
+      },
+      "19": {
+        "label": "GAME TIME 3.0-3.5M",
+        "value": 0
+      },
+      "20": {
+        "label": "GAME TIME 3.5-4.0M",
+        "value": 0
+      },
+      "21": {
+        "label": "GAME TIME 4-5 M.",
+        "value": 0
+      },
+      "22": {
+        "label": "GAME TIME 5-6 M.",
+        "value": 0
+      },
+      "23": {
+        "label": "GAME TIME 6-8 M.",
+        "value": 0
+      },
+      "24": {
+        "label": "GAME TIME 8-10 M",
+        "value": 0
+      },
+      "25": {
+        "label": "GAME TIME 10-15M",
+        "value": 0
+      },
+      "26": {
+        "label": "GAME TIME > 15M",
+        "value": 0
+      }
+    },
+    "B.6 TIME-STAMPS": {
+      "02": {
+        "label": "TOTALS CLEARED",
+        "value": "2024-01-11 12:13"
+      },
+      "03": {
+        "label": "CLOCK LAST SET",
+        "value": "2024-01-11 12:13"
+      },
+      "04": {
+        "label": "AUDITS CLEARED",
+        "value": "2024-01-11 12:13"
+      },
+      "05": {
+        "label": "COINS CLEARED",
+        "value": "2024-01-11 12:13"
+      },
+      "06": {
+        "label": "FACTORY SETTING",
+        "value": "2024-01-11 12:13"
+      },
+      "07": {
+        "label": "LAST GAME START",
+        "value": "2024-11-12 18:29"
+      },
+      "08": {
+        "label": "LAST REPLAY",
+        "value": "2024-01-11 12:13"
+      },
+      "09": {
+        "label": "LAST HSTD RESET",
+        "value": "2024-01-11 12:13"
+      },
+      "10": {
+        "label": "CHAMPION RESET",
+        "value": "2024-01-11 12:13"
+      },
+      "11": {
+        "label": "LAST PRINTOUT",
+        "value": "2024-01-11 12:13"
+      },
+      "12": {
+        "label": "LAST SERV. CRED",
+        "value": "2024-01-11 12:13"
+      }
+    }
+  },
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 10
+    },
+    "current_ball": {
+      "label": "Ball",
+      "value": 1
+    },
+    "current_player": {
+      "label": "Current Player",
+      "value": 1
+    },
+    "eb_on_this_ball": {
+      "label": "EBs this Ball",
+      "value": 0
+    },
+    "extra_balls": {
+      "label": "Extra Balls",
+      "value": 0
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": false
+    },
+    "max_credits": {
+      "label": "Maximum Credits",
+      "value": 10
+    },
+    "player_count": {
+      "label": "Players",
+      "value": 2
+    },
+    "replay": {
+      "label": "Replay",
+      "value": 200000000
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 595070
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      }
+    ],
+    "volume": {
+      "label": "Volume",
+      "value": 27
+    }
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "CD "
+      },
+      "label": "Greatest Vampire Hunter",
+      "score": {
+        "value": 300000000
+      },
+      "short_label": "GVP"
+    },
+    {
+      "initials": {
+        "value": "BSO"
+      },
+      "label": "Best Hunter #1",
+      "score": {
+        "value": 250000000
+      },
+      "short_label": ""
+    },
+    {
+      "initials": {
+        "value": "BIL"
+      },
+      "label": "Best Hunter #2",
+      "score": {
+        "value": 200000000
+      }
+    },
+    {
+      "initials": {
+        "value": "P H"
+      },
+      "label": "Best Hunter #3",
+      "score": {
+        "value": 150000000
+      }
+    },
+    {
+      "initials": {
+        "value": "S  "
+      },
+      "label": "Best Hunter #4",
+      "score": {
+        "value": 100000000
+      }
+    }
+  ],
+  "mode_champions": [
+    {
+      "initials": {
+        "value": "CD "
+      },
+      "label": "Loop Champion",
+      "score": {
+        "value": 6
+      },
+      "short_label": "LC"
+    }
+  ],
+  "validation": {
+    "checksum": [
+      {
+        "label": "Audits 1",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 2",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 3",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 4",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 5",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 6",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 7",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 8",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 9",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 10",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 11",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 12",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 13",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 14",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 15",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 16",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 17",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 18",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 19",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 20",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 21",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 22",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 23",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 24",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 25",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 26",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 27",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 28",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 29",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 30",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 31",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 32",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 33",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 34",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 35",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 36",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 37",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 38",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 39",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 40",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 41",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 42",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 43",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 44",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 45",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 46",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 47",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 48",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 49",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 50",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 51",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 52",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 53",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 54",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 55",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 56",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 57",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 58",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 59",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 60",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 61",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 62",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 63",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 64",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 65",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 66",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 67",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 68",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 69",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 70",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 71",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 72",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 73",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 74",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 75",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 76",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 77",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 78",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 79",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 80",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 81",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 82",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 83",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 84",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 85",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 86",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 87",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 88",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 89",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 90",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 91",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 92",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 93",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 94",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 95",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 96",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 97",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 98",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 99",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 100",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 101",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 102",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 103",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 104",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 105",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 106",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 107",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 108",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 109",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 110",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 111",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 112",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 113",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 114",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 115",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 116",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 117",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 118",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 119",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 120",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 121",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 122",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 123",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 124",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 125",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 126",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 127",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 128",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 129",
+        "value": "valid"
+      },
+      {
+        "label": "Audits 130",
+        "value": "valid"
+      },
+      {
+        "label": "Adjustments",
+        "value": "valid"
+      },
+      {
+        "label": "Timestamps",
+        "value": "valid"
+      },
+      {
+        "label": "High Scores",
+        "value": "valid"
+      },
+      {
+        "label": "Grand Champion",
+        "value": "valid"
+      },
+      {
+        "label": "HSTD Reset",
+        "value": "valid"
+      },
+      {
+        "label": "Credits",
+        "value": "valid"
+      },
+      {
+        "label": "Volume",
+        "value": "valid"
+      },
+      {
+        "value": "valid"
+      },
+      {
+        "value": "valid"
+      },
+      {
+        "label": "Custom Message (3x32)",
+        "value": "valid"
+      },
+      {
+        "label": "Custom Message (2x32)",
+        "value": "valid"
+      },
+      {
+        "label": "Loop Champion",
+        "value": "valid"
+      }
+    ]
+  }
+}

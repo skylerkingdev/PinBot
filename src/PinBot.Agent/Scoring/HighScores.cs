@@ -24,6 +24,10 @@ public sealed record ScoreEntry(
             s = s[..end].TrimEnd();
             if (s.Length >= 2 && s[^1] == s[^2]) s = s[..^1];
         }
+        // a longer field can carry a non-text byte after the name (Monopoly and Starship Troopers keep the player's
+        // token picture there: "PML\x08      " was entered as PML): the name ends at it
+        int control = raw.Length > 3 ? s.AsSpan().IndexOfAnyInRange((char)0x01, (char)0x1F) : -1;
+        if (control >= 0) s = s[..control].TrimEnd();
         if (s.Length == 0 || s.Any(c => c < 0x20 || c > 0x7E)) return null;
         return s.ToUpperInvariant();
     }

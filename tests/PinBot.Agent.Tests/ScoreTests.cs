@@ -59,6 +59,41 @@ public class ScoreDiffTests
     }
 
     [Fact]
+    public void A_map_that_reads_two_slots_from_the_same_bytes_is_not_trusted_and_runs_no_competitions()
+    {
+        // Dracula's map reads the top score's initials from the Loop Champion's: a player's best game (SKY, written by
+        // the ROM next to its score) would be credited to CD. Its new scores are held back instead of misattributed.
+        var map = TestData.Map("drac_l1");
+        Assert.Contains("same bytes", map.OverlapProblem);
+        Assert.Contains("same bytes", map.CompetitionBlocker);
+        Assert.False(map.BuildCompetitionImage(TestData.Nv("drac_l1")).Ok);
+
+        var dir = TestData.TempDir();
+        var path = Path.Combine(dir, "drac_l1.nv");
+        File.WriteAllBytes(path, TestData.Nv("drac_l1"));
+        var snap = Sessions.NvramSnapshot.Capture([dir], ["drac_l1"], TestData.Maps);
+        var after = File.ReadAllBytes(path);
+        "SKY"u8.CopyTo(after.AsSpan(7481));
+        new byte[] { 0x03, 0x10, 0x00, 0x00, 0x00 }.CopyTo(after, 7484); // 310,000,000
+        TestData.FixChecksums(after, map);
+        File.WriteAllBytes(path, after);
+
+        var o = snap.Analyze(path, TestData.Maps);
+        Assert.False(o.Trusted);
+        Assert.Contains(o.Problems, p => p.Contains("same bytes"));
+    }
+
+    [Fact]
+    public void No_other_map_reads_two_slots_from_the_same_bytes()
+    {
+        var index = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(MemoryMaps.DefaultRoot, "index.json")));
+        var overlapping = index.RootElement.EnumerateObject().Where(p => !p.Name.StartsWith('_'))
+            .Select(p => TestData.Maps.TryLoad(p.Name, out _)).OfType<RomMap>()
+            .Where(m => m.OverlapProblem != null).Select(m => Path.GetFileName(m.MapFile)).Distinct().ToList();
+        Assert.Equal(["drac_l1.map.json"], overlapping); // a fixed map drops out of this list: update the test then
+    }
+
+    [Fact]
     public void Player_beating_own_entry_counts_the_new_score_only()
     {
         // BRE held 1st with 7.0B; BRE scores 7.3B → new 1st, old BRE 7.0B moves to 2nd
@@ -132,6 +167,29 @@ public class ScoreDiffTests
         Assert.Equal("JBJ", ScoreEntry.NormalizeInitials("JBJJ[[[[[["));
         Assert.Equal("JEK", ScoreEntry.NormalizeInitials("JEK       ")); // factory entries: plain padding
         Assert.Equal("A[B", ScoreEntry.NormalizeInitials("A[B"));         // short initials are left alone
+    }
+
+    /// <summary>Monopoly and Starship Troopers keep the player's token picture in a byte after the initials.</summary>
+    [Fact]
+    public void A_picture_byte_after_the_initials_ends_the_name()
+    {
+        Assert.Equal("PML", ScoreEntry.NormalizeInitials("PML\x08      "));
+        Assert.Equal("CG", ScoreEntry.NormalizeInitials("CG \x0A      "));
+        Assert.Equal("JEK", ScoreEntry.NormalizeInitials("JEK\x0E"));
+        Assert.Null(ScoreEntry.NormalizeInitials("\u0005ABC"));   // nothing before it: no name
+        Assert.Null(ScoreEntry.NormalizeInitials("A\u0001B"));    // a 3-character field with a control byte is junk
+    }
+
+    [Fact]
+    public void Monopoly_and_Starship_Troopers_initials_survive_the_picture_byte()
+    {
+        foreach (var (rom, expected) in new[] { ("monopoly", "PML"), ("startrp", "JEK") })
+        {
+            var x = HighScoreReader.Extract(TestData.Maps, rom, TestData.Nv(rom));
+            Assert.True(x.Ok, x.Detail);
+            Assert.Contains(expected, x.Entries.Where(e => e.IsHighScore).Select(e => e.Initials));
+            Assert.All(x.Entries.Where(e => e.IsHighScore && e.Score is > 0), e => Assert.NotNull(e.Initials));
+        }
     }
 }
 

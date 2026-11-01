@@ -127,9 +127,32 @@ public sealed partial class RomMap
 
     /// <summary>Why this ROM cannot run competitions even though its scores can be read, or null.</summary>
     public string? CompetitionBlocker =>
-        IsSystem80B && !HasNibbleChecksums ? "high scores are protected by checksums PinBot cannot update yet (Gottlieb System 80B)"
+        OverlapProblem is { } overlap ? overlap
+        : IsSystem80B && !HasNibbleChecksums ? "high scores are protected by checksums PinBot cannot update yet (Gottlieb System 80B)"
         : RejectsLadder.Contains(Rom) ? "this ROM resets its high scores on a competition file (found by the emulator self-test); not offered until that is understood"
         : null;
+
+    /// <summary>
+    /// Why this map cannot be trusted to say whose score is whose, or null: a high score's initials or score share bytes
+    /// with another slot's, so one of the two is read from the wrong place (Dracula's map once read the top score's
+    /// initials from the Loop Champion's). Such a ROM's new scores are not trusted and it runs no competitions until the
+    /// map is fixed.
+    /// </summary>
+    public string? OverlapProblem
+    {
+        get
+        {
+            var owner = new Dictionary<int, EntryDef>();
+            foreach (var e in HighScores.Concat(ModeChampions))
+                foreach (var o in new[] { e.Initials, e.Score }.SelectMany(f => f?.FileOffsets ?? []).Distinct())
+                {
+                    if (owner.TryGetValue(o, out var other) && other != e && (e.Section == "high_scores" || other.Section == "high_scores"))
+                        return $"the memory map reads '{other.Label}' and '{e.Label}' from the same bytes, so a score could be credited to the wrong initials";
+                    owner[o] = e;
+                }
+            return null;
+        }
+    }
 
     /// <summary>
     /// ROMs the emulator self-test (2026-10-13) showed resetting a correct-looking ladder to factory values, with other

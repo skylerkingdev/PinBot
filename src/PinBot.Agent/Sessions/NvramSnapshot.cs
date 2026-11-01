@@ -91,8 +91,9 @@ public sealed class NvramSnapshot
     {
         var rom = HighScoreReader.RomFromFileName(nvPath);
         var problems = new List<string>();
-        if (maps.TryLoad(rom, out var why) is null)
+        if (maps.TryLoad(rom, out var why) is not { } map)
             return new(rom, nvPath, null, null, null, [$"unsupported ROM: {why}"]);
+        if (map.OverlapProblem is { } overlap) problems.Add(overlap);
 
         Extraction? before = null;
         if (Bytes.TryGetValue(nvPath, out var b)) before = HighScoreReader.Extract(maps, rom, b, nvPath);

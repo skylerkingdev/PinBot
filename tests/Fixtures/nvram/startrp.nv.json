@@ -1,0 +1,133 @@
+{
+  "_fileformat": 0.9,
+  "game_state": {
+    "ball_count": {
+      "label": "Ball Count",
+      "value": 3
+    },
+    "credits": {
+      "label": "Credits",
+      "value": 26
+    },
+    "current_ball": {
+      "label": "Ball",
+      "value": 1
+    },
+    "current_player": {
+      "label": "Player",
+      "value": 1
+    },
+    "free_play": {
+      "label": "Free Play",
+      "value": false
+    },
+    "game_over": {
+      "label": "Game Over",
+      "value": false
+    },
+    "max_credits": {
+      "label": "Max Credits",
+      "value": 30
+    },
+    "player_count": {
+      "label": "Player Count",
+      "value": 1
+    },
+    "scores": [
+      {
+        "label": "Player 1",
+        "value": 725040
+      },
+      {
+        "label": "Player 2",
+        "value": 0
+      },
+      {
+        "label": "Player 3",
+        "value": 0
+      },
+      {
+        "label": "Player 4",
+        "value": 0
+      },
+      {
+        "label": "Player 5",
+        "value": 0
+      },
+      {
+        "label": "Player 6",
+        "value": 0
+      }
+    ]
+  },
+  "high_scores": [
+    {
+      "initials": {
+        "value": "JOE\u0000"
+      },
+      "label": "First",
+      "score": {
+        "value": 250000000
+      },
+      "short_label": "#1"
+    },
+    {
+      "initials": {
+        "value": "JEK\u000e"
+      },
+      "label": "Second",
+      "score": {
+        "value": 225000000
+      },
+      "short_label": "#2"
+    },
+    {
+      "initials": {
+        "value": "NF \u0010"
+      },
+      "label": "Third",
+      "score": {
+        "value": 200000000
+      },
+      "short_label": "#3"
+    },
+    {
+      "initials": {
+        "value": "DAY\u000f"
+      },
+      "label": "Fourth",
+      "score": {
+        "value": 175000000
+      },
+      "short_label": "#4"
+    },
+    {
+      "initials": {
+        "value": "KRT\u0011"
+      },
+      "label": "Fifth",
+      "score": {
+        "value": 150000000
+      },
+      "short_label": "#5"
+    },
+    {
+      "initials": {
+        "value": "BMS\u0004"
+      },
+      "label": "Sixth",
+      "score": {
+        "value": 125000000
+      },
+      "short_label": "#6"
+    }
+  ],
+  "validation": {
+    "checksum": [
+      {
+        "label": "Adjustments",
+        "value": "valid"
+      }
+    ]
+  }
+}
