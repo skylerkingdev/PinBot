@@ -12,7 +12,7 @@ namespace PinBot.Agent.Scoring;
 /// </summary>
 public sealed class MemoryMaps
 {
-    public const string ParserVersion = "pbmm-0.8/pinbot-0.0.1";
+    public const string ParserVersion = "pbmm-0.9/pinbot-0.0.2";
 
     /// <summary>Reads a file of the maps repository by its '/'-separated relative path; null if it does not exist.</summary>
     readonly Func<string, byte[]?> _read;
@@ -119,7 +119,42 @@ public sealed class Field
 
 public sealed record EntryDef(string Section, string Label, string? ShortLabel, Field? Initials, Field? Score);
 
-public sealed record ChecksumRegion(string Label, int Start, int End, int? StoredAt, bool Is16);
+/// <summary>
+/// A checksum over the file bytes Start..End (inclusive), stored at StoredAt: one byte (Bits 8), two bytes in the
+/// platform's byte order (16), or the low nibble of one cell (4, on 4-bit NVRAM, summing the cells' low nibbles).
+/// Complement: the stored value is the sum's bitwise complement (0xFF - sum), not the sum itself.
+/// </summary>
+public sealed record ChecksumRegion(string Label, int Start, int End, int StoredAt, int Bits, bool Complement)
+{
+    public IEnumerable<int> StoredBytes => Bits == 16 ? [StoredAt, StoredAt + 1] : [StoredAt];
+
+    int Compute(byte[] nv)
+    {
+        int sum = 0;
+        for (int b = Start; b <= End; b++) sum += Bits == 4 ? nv[b] & 0xF : nv[b];
+        return (Complement ? ~sum : sum) & (Bits switch { 16 => 0xFFFF, 8 => 0xFF, _ => 0xF });
+    }
+
+    int Stored(byte[] nv, bool littleEndian) => Bits switch
+    {
+        16 => littleEndian ? nv[StoredAt] | nv[StoredAt + 1] << 8 : nv[StoredAt] << 8 | nv[StoredAt + 1],
+        8 => nv[StoredAt],
+        _ => nv[StoredAt] & 0xF,
+    };
+
+    public bool Ok(byte[] nv, bool littleEndian) => Compute(nv) == Stored(nv, littleEndian);
+
+    public void Write(byte[] nv, bool littleEndian)
+    {
+        int v = Compute(nv);
+        if (Bits == 16) (nv[StoredAt], nv[StoredAt + 1]) = littleEndian ? ((byte)v, (byte)(v >> 8)) : ((byte)(v >> 8), (byte)v);
+        else if (Bits == 8) nv[StoredAt] = (byte)v;
+        else nv[StoredAt] = (byte)((nv[StoredAt] & 0xF0) | v);
+    }
+}
+
+/// <summary>A region the ROM keeps more than one copy of (file offset of each copy, same length): writes go to all.</summary>
+public sealed record MirrorRegion(string Label, int[] Starts, int Length);
 
 public sealed partial class RomMap
 {
@@ -134,6 +169,8 @@ public sealed partial class RomMap
     public required List<EntryDef> HighScores { get; init; }
     public required List<EntryDef> ModeChampions { get; init; }
     public required List<ChecksumRegion> Checksums { get; init; }
+    /// <summary>Copies the map declares (validation.mirror, _fileformat 0.9); empty for older maps.</summary>
+    public List<MirrorRegion> Mirrors { get; init; } = [];
     public bool LittleEndian { get; init; }
 
     internal static RomMap Load(string rom, Func<string, byte[]?> read, string relativeMapPath)
@@ -143,7 +180,7 @@ public sealed partial class RomMap
         var m = mapDoc.RootElement;
 
         var fileFormat = m.GetProperty("_fileformat").GetDouble();
-        if (fileFormat < 0.7 || fileFormat >= 0.9)
+        if (fileFormat < 0.7 || fileFormat >= 1.0)
             throw new InvalidDataException($"unsupported _fileformat {fileFormat.ToString(CultureInfo.InvariantCulture)}");
 
         var meta = m.GetProperty("_metadata");
@@ -165,15 +202,20 @@ public sealed partial class RomMap
         int size = (int)Num(nv.GetProperty("size"));
         var platNibble = nv.TryGetProperty("nibble", out var pn) ? ParseNibble(pn.GetString()) : Nibble.Both;
 
-        Field? ParseField(JsonElement d)
+        Field? ParseField(JsonElement d, long shift = 0)
         {
             var enc = d.GetProperty("encoding").GetString()!;
             int[] offsets;
             if (d.TryGetProperty("offsets", out var offs))
-                offsets = offs.EnumerateArray().Select(o => ToFileOffset(Num(o), baseAddr, size)).ToArray();
+            {
+                // a start next to offsets is their base (_fileformat 0.9); a repeated entry shifts that base
+                long origin = d.TryGetProperty("start", out var st) ? Num(st) + shift
+                    : shift == 0 ? 0 : throw new InvalidDataException("a repeated entry's offsets need a start to shift");
+                offsets = offs.EnumerateArray().Select(o => ToFileOffset(origin + Num(o), baseAddr, size)).ToArray();
+            }
             else
             {
-                long start = Num(d.GetProperty("start"));
+                long start = Num(d.GetProperty("start")) + shift;
                 long len = d.TryGetProperty("length", out var l) ? Num(l)
                          : d.TryGetProperty("end", out var e) ? Num(e) - start + 1 : 1;
                 int first = ToFileOffset(start, baseAddr, size);
@@ -201,36 +243,82 @@ public sealed partial class RomMap
             var list = new List<EntryDef>();
             if (!m.TryGetProperty(section, out var arr) || arr.ValueKind != JsonValueKind.Array) return list;
             foreach (var e in arr.EnumerateArray())
-            {
-                var label = e.TryGetProperty("label", out var lb) ? lb.GetString()! : "?";
-                list.Add(new EntryDef(
-                    section == "high_scores" && IsSecondaryLeaderboard(label) ? SecondarySection : section,
-                    label,
-                    e.TryGetProperty("short_label", out var sl) ? sl.GetString() : null,
-                    e.TryGetProperty("initials", out var i) ? ParseField(i) : null,
-                    e.TryGetProperty("score", out var sc) ? ParseField(sc) : null));
-            }
+                foreach (var (n, shift) in Repeats(e))
+                {
+                    var label = Numbered(e.TryGetProperty("label", out var lb) ? lb.GetString()! : "?", n)!;
+                    list.Add(new EntryDef(
+                        section == "high_scores" && IsSecondaryLeaderboard(label) ? SecondarySection : section,
+                        label,
+                        e.TryGetProperty("short_label", out var sl) ? Numbered(sl.GetString(), n) : null,
+                        e.TryGetProperty("initials", out var i) ? ParseField(i, shift) : null,
+                        e.TryGetProperty("score", out var sc) ? ParseField(sc, shift) : null));
+                }
             return list;
         }
 
+        // _fileformat 0.9 describes checksums and copies in _metadata.validation; its maps keep the older checksum8 and
+        // checksum16 lists for a while, which are to be ignored there
         var checksums = new List<ChecksumRegion>();
-        foreach (var (key, is16) in new[] { ("checksum8", false), ("checksum16", true) })
+        var mirrors = new List<MirrorRegion>();
+        var validation = fileFormat >= 0.9 && meta.TryGetProperty("validation", out var v) ? v : default;
+        if (fileFormat >= 0.9)
         {
-            if (!m.TryGetProperty(key, out var arr)) continue;
-            foreach (var c in arr.EnumerateArray())
-            {
-                string label = c.TryGetProperty("label", out var lb) ? lb.GetString() ?? key : key;
-                int start = ToFileOffset(Num(c.GetProperty("start")), baseAddr, size);
-                int end = c.TryGetProperty("end", out var e) ? ToFileOffset(Num(e), baseAddr, size)
-                        : start + (int)(c.TryGetProperty("length", out var l) ? Num(l) : 1) - 1;
-                int? storedAt = c.TryGetProperty("checksum", out var ca) ? ToFileOffset(Num(ca), baseAddr, size) : null;
-                int group = c.TryGetProperty("groupings", out var g) ? (int)Num(g) : end - start + 1;
-                if (group <= 0 || (end - start + 1) % group != 0)
-                    throw new InvalidDataException($"{key} '{label}' groupings do not divide its range");
-                for (int gs = start; gs <= end; gs += group)
-                    checksums.Add(new ChecksumRegion(label, gs, gs + group - 1, storedAt, is16));
-            }
+            if (validation.ValueKind == JsonValueKind.Object && validation.TryGetProperty("checksum", out var arr))
+                foreach (var c in arr.EnumerateArray())
+                    foreach (var (n, shift) in Repeats(c))
+                    {
+                        string label = Numbered(c.TryGetProperty("label", out var lb) ? lb.GetString() : null, n) ?? "checksum";
+                        int bits = c.TryGetProperty("bits", out var bt) ? (int)Num(bt) : 8;
+                        if (bits is not (4 or 8 or 16)) throw new InvalidDataException($"checksum '{label}' has {bits} bits");
+                        long start = Num(c.GetProperty("start")) + shift;
+                        long end = c.TryGetProperty("end", out var e) ? Num(e) + shift
+                                 : start + (c.TryGetProperty("length", out var l) ? Num(l) : 1) - 1;
+                        // the checksum ends the range unless "checksum" says where it is
+                        int width = bits == 16 ? 2 : 1;
+                        bool apart = c.TryGetProperty("checksum", out var ca);
+                        long stored = apart ? Num(ca) + shift : end - width + 1;
+                        if (apart) ToFileOffset(stored + width - 1, baseAddr, size);
+                        checksums.Add(new ChecksumRegion(label, ToFileOffset(start, baseAddr, size),
+                            ToFileOffset(apart ? end : end - width, baseAddr, size), ToFileOffset(stored, baseAddr, size),
+                            bits, c.GetProperty("complement").GetBoolean()));
+                    }
+            if (validation.ValueKind == JsonValueKind.Object && validation.TryGetProperty("mirror", out var mir))
+                foreach (var d in mir.EnumerateArray())
+                    foreach (var (n, shift) in Repeats(d))
+                    {
+                        long origin = (d.TryGetProperty("start", out var st) ? Num(st) : 0) + shift;
+                        int length = (int)Num(d.GetProperty("length"));
+                        var starts = d.GetProperty("offsets").EnumerateArray().Select(o => origin + Num(o)).ToList();
+                        foreach (var s0 in starts) ToFileOffset(s0 + length - 1, baseAddr, size);
+                        mirrors.Add(new MirrorRegion(Numbered(d.TryGetProperty("label", out var lb) ? lb.GetString() : null, n) ?? "mirror",
+                            starts.Select(s0 => ToFileOffset(s0, baseAddr, size)).ToArray(), length));
+                    }
         }
+        else
+            foreach (var (key, is16) in new[] { ("checksum8", false), ("checksum16", true) })
+            {
+                if (!m.TryGetProperty(key, out var arr)) continue;
+                foreach (var c in arr.EnumerateArray())
+                {
+                    string label = c.TryGetProperty("label", out var lb) ? lb.GetString() ?? key : key;
+                    int start = ToFileOffset(Num(c.GetProperty("start")), baseAddr, size);
+                    int end = c.TryGetProperty("end", out var e) ? ToFileOffset(Num(e), baseAddr, size)
+                            : start + (int)(c.TryGetProperty("length", out var l) ? Num(l) : 1) - 1;
+                    int? storedAt = c.TryGetProperty("checksum", out var ca) ? ToFileOffset(Num(ca), baseAddr, size) : null;
+                    int group = c.TryGetProperty("groupings", out var g) ? (int)Num(g) : end - start + 1;
+                    if (group <= 0 || (end - start + 1) % group != 0)
+                        throw new InvalidDataException($"{key} '{label}' groupings do not divide its range");
+                    // checksum16: the range's last two bytes hold 0xFFFF minus the sum of the rest; checksum8: 0xFF minus
+                    // the low byte of the sum, in the range's last byte or at "checksum"
+                    for (int gs = start; gs <= end; gs += group)
+                    {
+                        int ge = gs + group - 1;
+                        checksums.Add(is16 ? new ChecksumRegion(label, gs, ge - 2, ge - 1, 16, true)
+                            : storedAt is { } at ? new ChecksumRegion(label, gs, ge, at, 8, true)
+                            : new ChecksumRegion(label, gs, ge - 1, ge, 8, true));
+                    }
+                }
+            }
 
         return new RomMap
         {
@@ -242,24 +330,37 @@ public sealed partial class RomMap
             LittleEndian = little,
             HighScores = Entries("high_scores"),
             ModeChampions = Entries("mode_champions"),
-            Checksums = checksums.Count > 0 || platformName != "stern-sam" ? checksums : SamEntryChecksums(Entries("high_scores")),
+            Checksums = platformName != "stern-sam" ? checksums : WithSamEntryChecksums(checksums, Entries("high_scores")),
+            Mirrors = mirrors,
         };
     }
+
+    /// <summary>Each copy of a descriptor with a "repeat" object (_fileformat 0.9): its 1-based number and address shift.</summary>
+    static IEnumerable<(int N, long Shift)> Repeats(JsonElement d)
+    {
+        if (!d.TryGetProperty("repeat", out var r)) return [(1, 0)];
+        long count = Num(r.GetProperty("count")), step = Num(r.GetProperty("step"));
+        if (count is < 1 or > 1000) throw new InvalidDataException($"repeat count {count}");
+        return Enumerable.Range(1, (int)count).Select(n => (n, (n - 1) * step));
+    }
+
+    static string? Numbered(string? label, int n) => label?.Replace("{#}", n.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// Stern SAM protects every high-score entry with its own checksum16: the entry's bytes from the initials up to
     /// the next entry, less 2 bytes, with the checksum in the last two (0xFFFF minus the byte sum, little-endian). Half
     /// the SAM maps leave this out; without it a competition image would be rejected by the ROM, which then resets the
     /// table to factory defaults (seen on AC/DC). Verified on every SAM map against 120 real NVRAM files (545 entries,
-    /// no exception), including the maps that do list their checksums.
+    /// no exception), including the maps that do list their checksums. Entries a map already covers keep its checksum.
     /// </summary>
-    static List<ChecksumRegion> SamEntryChecksums(List<EntryDef> highScores)
+    static List<ChecksumRegion> WithSamEntryChecksums(List<ChecksumRegion> declared, List<EntryDef> highScores)
     {
         var starts = highScores.Where(e => e.Initials != null).Select(e => e.Initials!.FileOffsets.Min()).Order().ToList();
-        if (starts.Count < 2) return [];
+        if (starts.Count < 2) return declared;
         var stride = starts.Zip(starts.Skip(1), (a, b) => b - a).Min();
-        if (stride < 8) return [];
-        return starts.Select(s => new ChecksumRegion("SAM entry (derived)", s, s + stride - 3, null, true)).ToList();
+        if (stride < 8) return declared;
+        var derived = starts.Select(s => new ChecksumRegion("SAM entry (derived)", s, s + stride - 5, s + stride - 4, 16, true));
+        return [.. declared, .. derived.Where(d => !declared.Any(c => c.Start <= d.Start && d.Start <= c.End))];
     }
 
     /// <summary>Section name for high_scores entries that belong to a secondary leaderboard (never qualifying).</summary>
@@ -343,35 +444,11 @@ public sealed partial class RomMap
             bool covers = !scoreRegionsOnly;
             for (int b = c.Start; b <= c.End && !covers; b++) covers = scoreBytes.Contains(b);
             if (!covers) continue;
-            if (Math.Max(c.End, c.StoredAt ?? 0) >= nv.Length)
+            if (Math.Max(c.End, c.StoredBytes.Max()) >= nv.Length)
                 throw new InvalidDataException($"file too small for checksum region '{c.Label}'");
-            if (!ChecksumOk(nv, c) && !failures.Contains(c.Label)) failures.Add(c.Label);
+            if (!c.Ok(nv, LittleEndian) && !failures.Contains(c.Label)) failures.Add(c.Label);
         }
         return failures;
-    }
-
-    bool ChecksumOk(byte[] nv, ChecksumRegion c)
-    {
-        if (c.Is16)
-        {
-            // last two bytes of the range = 0xFFFF minus the sum of all prior bytes in the range
-            int sum = 0;
-            for (int b = c.Start; b <= c.End - 2; b++) sum += nv[b];
-            ushort calc = (ushort)(0xFFFF - (sum & 0xFFFF));
-            ushort stored = LittleEndian
-                ? (ushort)(nv[c.End - 1] | nv[c.End] << 8)
-                : (ushort)(nv[c.End - 1] << 8 | nv[c.End]);
-            return calc == stored;
-        }
-        else
-        {
-            // stored byte = 0xFF minus the low byte of the sum of the data bytes
-            int dataEnd = c.StoredAt is null ? c.End - 1 : c.End;
-            int sum = 0;
-            for (int b = c.Start; b <= dataEnd; b++) sum += nv[b];
-            byte calc = (byte)(0xFF - (sum & 0xFF));
-            return calc == nv[c.StoredAt ?? c.End];
-        }
     }
 
     static byte[] ReadRaw(byte[] nv, Field f)

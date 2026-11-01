@@ -221,21 +221,7 @@ public sealed partial class RomMap
         {
             bool touched = false;
             for (int b = c.Start; b <= c.End && !touched; b++) touched = image[b] != original[b];
-            if (!touched) continue;
-            if (c.Is16)
-            {
-                int sum = 0;
-                for (int b = c.Start; b <= c.End - 2; b++) sum += image[b];
-                var v = (ushort)(0xFFFF - (sum & 0xFFFF));
-                (image[c.End - 1], image[c.End]) = LittleEndian ? ((byte)v, (byte)(v >> 8)) : ((byte)(v >> 8), (byte)v);
-            }
-            else
-            {
-                int dataEnd = c.StoredAt is null ? c.End - 1 : c.End;
-                int sum = 0;
-                for (int b = c.Start; b <= dataEnd; b++) sum += image[b];
-                image[c.StoredAt ?? c.End] = (byte)(0xFF - (sum & 0xFF));
-            }
+            if (touched) c.Write(image, LittleEndian);
         }
     }
 
@@ -249,6 +235,13 @@ public sealed partial class RomMap
         foreach (var m in mirrors)
             if (Enumerable.Range(0, block.Length).Any(k => (image[m + k] & mask) != (image[block.Start + k] & mask)))
                 return "a high-score backup copy does not match the table";
+        // copies the map declares (validation.mirror): every byte the copies agreed on must still agree, or the ROM
+        // would restore (or reset) what PinBot changed
+        foreach (var d in Mirrors)
+            for (int k = 0; k < d.Length; k++)
+                if (d.Starts.All(s => (original[s + k] & mask) == (original[d.Starts[0] + k] & mask))
+                    && d.Starts.Any(s => (image[s + k] & mask) != (image[d.Starts[0] + k] & mask)))
+                    return $"the copies of '{d.Label}' would no longer match";
         var after = HighScoreReader.Extract(this, image);
         if (after.Status != ExtractStatus.Ok) return $"competition image does not verify: {after.Status} {after.Detail}";
         var before = Decode(original);
@@ -266,11 +259,7 @@ public sealed partial class RomMap
         var mirrored = scoreBytes.Where(o => o >= block.Start && o < block.Start + block.Length).ToList();
         var allowed = new HashSet<int>(scoreBytes.Concat(mirrors.SelectMany(m => mirrored.Select(o => o - block.Start + m))));
         if (HasNibbleChecksums) allowed.UnionWith(Enumerable.Range(NibbleChecksumBase, main.Count));
-        foreach (var c in Checksums)
-        {
-            if (c.Is16) { allowed.Add(c.End - 1); allowed.Add(c.End); }
-            else allowed.Add(c.StoredAt ?? c.End);
-        }
+        foreach (var c in Checksums) allowed.UnionWith(c.StoredBytes);
         for (int b = 0; b < image.Length; b++)
             if (image[b] != original[b] && !allowed.Contains(b)) return $"unexpected byte change at offset {b}";
         return null;

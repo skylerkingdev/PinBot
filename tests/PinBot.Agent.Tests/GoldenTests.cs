@@ -85,8 +85,11 @@ public class GoldenTests(ITestOutputHelper output)
         }
 
         // Checksums: the set of failing regions must match the reference exactly.
+        // older reference files list checksums under checksum8/checksum16, newer ones under validation.checksum
+        var validation = root.TryGetProperty("validation", out var val) && val.TryGetProperty("checksum", out var vc) ? vc.EnumerateArray() : [];
         var expectedBad = new[] { "checksum8", "checksum16" }
             .SelectMany(k => root.TryGetProperty(k, out var arr) ? arr.EnumerateArray() : [])
+            .Concat(validation)
             .Where(c => c.TryGetProperty("checksum_mismatch_expected", out _))
             .Select(c => c.GetProperty("label").GetString()!).ToHashSet();
         var actualBad = map.VerifyChecksums(bytes, scoreRegionsOnly: false).ToHashSet();

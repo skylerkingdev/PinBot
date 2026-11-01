@@ -41,14 +41,7 @@ static class TestData
 
     public static void FixChecksums(byte[] nv, RomMap map)
     {
-        foreach (var c in map.Checksums.Where(c => c.Is16))
-        {
-            int sum = 0;
-            for (int b = c.Start; b <= c.End - 2; b++) sum += nv[b];
-            var calc = (ushort)(0xFFFF - (sum & 0xFFFF));
-            nv[c.End - 1] = (byte)(calc >> 8);
-            nv[c.End] = (byte)calc;
-        }
+        foreach (var c in map.Checksums.Where(c => c.Bits == 16)) c.Write(nv, map.LittleEndian);
     }
 
     public static RomMap Map(string rom) => Maps.TryLoad(rom, out var why) ?? throw new InvalidOperationException(why);
