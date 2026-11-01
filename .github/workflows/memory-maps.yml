@@ -195,7 +195,7 @@ jobs:
             # Draft while failing, ready for review once passing (a PR already in that state is not an error worth failing on).
             if ($passed) { gh pr ready $pr } else { gh pr ready $pr --undo }
           } else {
-            $draft = if ($passed) { @() } else { @('--draft') }
+            $draft = @(if (-not $passed) { '--draft' }) # @() keeps an array: a bare string would be splatted one character at a time
             gh pr create --base $env:BASE --head $env:BRANCH --title $title --body-file "$env:RUNNER_TEMP/body.md" @draft
             if ($LASTEXITCODE) { throw "gh pr create failed" }
           }
