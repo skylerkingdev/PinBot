@@ -19,7 +19,7 @@ public class HardeningTests
     }
 
     [Fact]
-    public void A_paused_console_window_never_holds_up_the_watcher()
+    public async Task A_paused_console_window_never_holds_up_the_watcher()
     {
         // on the cabinet, text left selected in PinBot's window froze it at "VPX start": the whole game went unseen
         Log.ConsoleInBackground();
@@ -29,10 +29,10 @@ public class HardeningTests
         try
         {
             var logged = Task.Run(() => Log.Info("[s-test] VPX start"));
-            Assert.True(logged.Wait(TimeSpan.FromSeconds(5)), "logging waited for the paused window");
+            Assert.Same(logged, await Task.WhenAny(logged, Task.Delay(TimeSpan.FromSeconds(5)))); // else it waited for the window
             console.Resume.Set();                           // the selection ends: the window catches up
             var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (!console.Seen.ToString().Contains("[s-test] VPX start") && DateTime.UtcNow < deadline) Thread.Sleep(20);
+            while (!console.Seen.ToString().Contains("[s-test] VPX start") && DateTime.UtcNow < deadline) await Task.Delay(20);
             Assert.Contains("[s-test] VPX start", console.Seen.ToString());
         }
         finally
