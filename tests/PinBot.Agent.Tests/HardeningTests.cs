@@ -7,6 +7,41 @@ namespace PinBot.Agent.Tests;
 /// <summary>Edge cases found in review: re-pairing, NVRAM files PinBot changed mid-game, relative table paths.</summary>
 public class HardeningTests
 {
+    /// <summary>A console window with text selected in it: every write waits until the selection ends.</summary>
+    sealed class PausedConsole : TextWriter
+    {
+        public readonly ManualResetEventSlim Resume = new();
+        public readonly System.Text.StringBuilder Seen = new();
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+        public override void Write(char value) { Resume.Wait(); lock (Seen) Seen.Append(value); }
+        public override void Write(string? value) { Resume.Wait(); lock (Seen) Seen.Append(value); }
+        public override void WriteLine(string? value) => Write(value + "\n");
+    }
+
+    [Fact]
+    public void A_paused_console_window_never_holds_up_the_watcher()
+    {
+        // on the cabinet, text left selected in PinBot's window froze it at "VPX start": the whole game went unseen
+        Log.ConsoleInBackground();
+        var console = new PausedConsole();
+        var before = Console.Out;
+        Console.SetOut(console);
+        try
+        {
+            var logged = Task.Run(() => Log.Info("[s-test] VPX start"));
+            Assert.True(logged.Wait(TimeSpan.FromSeconds(5)), "logging waited for the paused window");
+            console.Resume.Set();                           // the selection ends: the window catches up
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (!console.Seen.ToString().Contains("[s-test] VPX start") && DateTime.UtcNow < deadline) Thread.Sleep(20);
+            Assert.Contains("[s-test] VPX start", console.Seen.ToString());
+        }
+        finally
+        {
+            console.Resume.Set();
+            Console.SetOut(before);
+        }
+    }
+
     [Fact]
     public void Queued_results_are_set_aside_not_lost()
     {
