@@ -35,13 +35,38 @@ public static class Log
     /// <summary>Plain console output that is also captured in the log file.</summary>
     public static void Out(string msg = "") => Write(null, msg, null);
 
+    static System.Collections.Concurrent.BlockingCollection<(string Text, ConsoleColor? Color)>? _console;
+
+    /// <summary>
+    /// For the watcher: the console window is written by a thread of its own. Text selected in a console window pauses
+    /// every write to it until the selection ends; written directly, that froze the watcher (a whole game went unseen).
+    /// The log file is still written at once; a window paused for long loses only its own lines.
+    /// </summary>
+    public static void ConsoleInBackground()
+    {
+        lock (Gate)
+        {
+            if (_console != null) return;
+            var queue = _console = new(boundedCapacity: 10_000);
+            new Thread(() => { foreach (var (text, color) in queue.GetConsumingEnumerable()) WriteConsole(text, color); })
+                { IsBackground = true, Name = "console" }.Start();
+        }
+    }
+
+    static void WriteConsole(string text, ConsoleColor? color)
+    {
+        if (color is { } c) Console.ForegroundColor = c;
+        Console.WriteLine(text);
+        if (color != null) Console.ResetColor();
+    }
+
     static void Write(string? level, string msg, ConsoleColor? color)
     {
         lock (Gate)
         {
-            if (color is { } c) Console.ForegroundColor = c;
-            Console.WriteLine(level is null || level == "INFO" ? msg : $"{level}: {msg}");
-            if (color != null) Console.ResetColor();
+            var text = level is null || level == "INFO" ? msg : $"{level}: {msg}";
+            if (_console is { } queue) queue.TryAdd((text, color)); // full: the window has been paused a long time
+            else WriteConsole(text, color);
             if (_file == null || (_written += msg.Length) > MaxFileBytes && level is not ("ERROR" or "WARN")) return;
             try
             {

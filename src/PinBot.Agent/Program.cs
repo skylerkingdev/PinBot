@@ -95,6 +95,7 @@ try
         case "watch":
         {
             if (args.Contains("--minimized")) Setup.MinimizeConsole();
+            Log.ConsoleInBackground(); // selecting text in the window must never pause the watcher
             Native.RunAsBackground(); // below-normal priority, efficiency mode: never competes with VPX
             // after a crash or an update, the previous watcher may still be exiting: wait for it rather than give up
             using var watcher = Setup.ClaimWatcher(args.Contains("--after-crash") ? TimeSpan.FromSeconds(60) : TimeSpan.Zero);
