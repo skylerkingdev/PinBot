@@ -88,6 +88,29 @@ public class MapFormatTests
     }
 
     [Fact]
+    public void A_map_that_reads_two_slots_from_the_same_bytes_is_not_trusted_and_runs_no_competitions()
+    {
+        // as Dracula's map once did: the top score's initials read from a mode champion's (0x180), not its own (0x100)
+        var maps = Maps(Map09("{}").Replace("""{ "start": "0x100", "length": 3""", """{ "start": "0x180", "length": 3"""));
+        var map = maps.TryLoad("test", out _)!;
+        Assert.Contains("same bytes", map.OverlapProblem);
+        Assert.Contains("same bytes", map.CompetitionBlocker);
+        Assert.False(map.BuildCompetitionImage(Nv()).Ok);
+
+        var dir = TestData.TempDir();
+        var path = Path.Combine(dir, "test.nv");
+        File.WriteAllBytes(path, Nv());
+        var snap = Sessions.NvramSnapshot.Capture([dir], ["test"], maps);
+        var after = File.ReadAllBytes(path);
+        "SKY"u8.CopyTo(after.AsSpan(0x100));
+        new byte[] { 0x00, 0x90, 0x00, 0x00 }.CopyTo(after, 0x103);
+        File.WriteAllBytes(path, after);
+        var o = snap.Analyze(path, maps);
+        Assert.False(o.Trusted);
+        Assert.Contains(o.Problems, p => p.Contains("same bytes"));
+    }
+
+    [Fact]
     public void A_competition_file_keeps_declared_copies_in_step()
     {
         var mirrored = Map09("""{ "mirror": [ { "label": "High Scores", "offsets": ["0x100", "0x200"], "length": 16 } ] }""");

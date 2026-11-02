@@ -59,14 +59,12 @@ public class ScoreDiffTests
     }
 
     [Fact]
-    public void A_map_that_reads_two_slots_from_the_same_bytes_is_not_trusted_and_runs_no_competitions()
+    public void Dracula_top_score_carries_its_own_initials_not_the_loop_champions()
     {
-        // Dracula's map reads the top score's initials from the Loop Champion's: a player's best game (SKY, written by
-        // the ROM next to its score) would be credited to CD. Its new scores are held back instead of misattributed.
+        // the cabinet report: a player's best game became Greatest Vampire Hunter (SKY, written by the ROM next to its
+        // score) and was credited to the Loop Champion's initials (CD) until the map was fixed upstream (issue #204)
         var map = TestData.Map("drac_l1");
-        Assert.Contains("same bytes", map.OverlapProblem);
-        Assert.Contains("same bytes", map.CompetitionBlocker);
-        Assert.False(map.BuildCompetitionImage(TestData.Nv("drac_l1")).Ok);
+        Assert.Null(map.CompetitionBlocker);
 
         var dir = TestData.TempDir();
         var path = Path.Combine(dir, "drac_l1.nv");
@@ -79,18 +77,19 @@ public class ScoreDiffTests
         File.WriteAllBytes(path, after);
 
         var o = snap.Analyze(path, TestData.Maps);
-        Assert.False(o.Trusted);
-        Assert.Contains(o.Problems, p => p.Contains("same bytes"));
+        Assert.True(o.Trusted, string.Join("; ", o.Problems));
+        var e = Assert.Single(o.Diff!.NewEntries);
+        Assert.Equal(("SKY", 310_000_000L, "Greatest Vampire Hunter"), (e.Initials, e.Score!.Value, e.Label));
     }
 
     [Fact]
-    public void No_other_map_reads_two_slots_from_the_same_bytes()
+    public void No_map_reads_two_slots_from_the_same_bytes()
     {
         var index = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(MemoryMaps.DefaultRoot, "index.json")));
         var overlapping = index.RootElement.EnumerateObject().Where(p => !p.Name.StartsWith('_'))
             .Select(p => TestData.Maps.TryLoad(p.Name, out _)).OfType<RomMap>()
             .Where(m => m.OverlapProblem != null).Select(m => Path.GetFileName(m.MapFile)).Distinct().ToList();
-        Assert.Equal(["drac_l1.map.json"], overlapping); // a fixed map drops out of this list: update the test then
+        Assert.Empty(overlapping); // such a ROM is held back (MapFormatTests); a new one here needs an upstream fix
     }
 
     [Fact]
