@@ -37,12 +37,14 @@ if (args is ["show", var showRom, .. var files]) // the high-score table in each
 }
 
 int seconds = 15;
+var ladders = false;
 var only = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--seconds" && i + 1 < args.Length) seconds = int.Parse(args[++i]);
+    else if (args[i] == "--ladders") ladders = true;
     else if (args[i] == "--rom" && i + 1 < args.Length) only.UnionWith(args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-    else { Console.WriteLine("usage: pinbot-selftest [--rom rom1,rom2] [--seconds 15]"); return 2; }
+    else { Console.WriteLine("usage: pinbot-selftest [--rom rom1,rom2] [--seconds 15] [--ladders]"); return 2; }
 }
 if (SessionWatcher.VpxRunning()) { Console.WriteLine("Close Visual Pinball first: the self-test needs the PC to itself."); return 1; }
 
@@ -95,9 +97,10 @@ string Test(string rom, string nvPath)
     var control = Boot(rom, "control", original, romsDir, map);
     if (control.Error is { } e) return $"ERROR {e}";
     if (!control.Kept) return Keep(rom, "INCONCLUSIVE  the ROM changed its own high scores in the emulator");
+    if (ladders) return TryLadders(rom, original, romsDir, map);
     var comp = Boot(rom, "competition", image.Bytes!, romsDir, map);
     if (comp.Error is { } e2) return $"ERROR {e2}";
-    if (!comp.Kept) return Keep(rom, "FAIL  the ROM reset PinBot's competition file");
+    if (!comp.Kept) return Keep(rom, "FAIL  the ROM reset PinBot's competition file") + Changed(rom, original, image.Bytes!);
     (bool Kept, string? Error)? check = naive is null ? null : Boot(rom, "naive", naive, romsDir, map);
     if (check?.Error is { } e3) return $"ERROR {e3}";
     return check is { Kept: false }
@@ -118,6 +121,45 @@ string Keep(string rom, string verdict)
         if (File.Exists(Path.Combine(dir, "nvram", rom + ".nv"))) File.Copy(Path.Combine(dir, "nvram", rom + ".nv"), Path.Combine(dst, $"{kind}-after.nv"), true);
     }
     return verdict + $" (files in {dst})";
+}
+
+// --ladders: which tables the ROM keeps, from PinBot's own up to its own scores changed by a point; shows whether it
+// rejects any change (a check PinBot does not know) or only scores below some floor
+string TryLadders(string rom, byte[] original, string romsDir, RomMap map)
+{
+    var own = HighScoreReader.Extract(map, original).Entries.Where(e => e.IsHighScore && e.Score != null).Select(e => e.Score!.Value).ToList();
+    var tries = new List<(string Name, List<long> Ladder)>();
+    foreach (var step in new long[] { 10_000, 100_000, 1_000_000, 10_000_000 })
+        tries.Add(($"top {own.Count * step:N0}", Enumerable.Range(0, own.Count).Select(i => (own.Count - i) * step).ToList()));
+    tries.Add(("its own scores, 10 less each", own.Select(v => v - 10).ToList()));
+    tries.Add(("its own scores, the lowest 10 less", own.Select((v, i) => i == own.Count - 1 ? v - 10 : v).ToList()));
+    tries.Add(("its own scores, only the top 10 less", own.Select((v, i) => i == 0 ? v - 10 : v).ToList()));
+    tries.Add(("its own top score, PinBot's ladder below", own.Select((v, i) => i == 0 ? v : (own.Count - i) * 10_000L).ToList()));
+    var lines = new List<string> { "LADDERS" };
+    for (int k = 0; k < tries.Count; k++)
+    {
+        var (name, ladder) = tries[k];
+        var image = map.BuildCompetitionImage(original, _ => [ladder]);
+        if (!image.Ok) { lines.Add($"    {name,-36} not built: {image.Problem}"); continue; }
+        var run = Boot(rom, $"ladder{k}", image.Bytes!, romsDir, map);
+        lines.Add($"    {name,-36} {(run.Error ?? (run.Kept ? "kept" : "RESET"))}  ({string.Join(", ", ladder.Select(v => v.ToString("N0")))})");
+    }
+    return string.Join(Environment.NewLine, lines);
+}
+
+// for reading a FAIL without the files: what PinBot changed, and what the ROM changed besides its own control run
+string Changed(string rom, byte[] original, byte[] competition)
+{
+    static string Ranges(IEnumerable<int> offsets) => string.Join(" ", offsets
+        .Select((o, i) => (o, key: o - i)).GroupBy(x => x.key).Select(g => g.First().o == g.Last().o ? $"{g.First().o:X4}" : $"{g.First().o:X4}-{g.Last().o:X4}")
+        .Take(40));
+    var dir = Path.Combine(Path.GetTempPath(), "pinbot-selftest");
+    byte[]? After(string kind) => File.Exists(Path.Combine(dir, $"{rom}-{kind}", "nvram", rom + ".nv")) ? File.ReadAllBytes(Path.Combine(dir, $"{rom}-{kind}", "nvram", rom + ".nv")) : null;
+    var (control, comp) = (After("control"), After("competition"));
+    var line = $"\n    PinBot wrote: {Ranges(Enumerable.Range(0, original.Length).Where(i => original[i] != competition[i]))}";
+    if (control is { } c && comp is { } a && c.Length == a.Length)
+        line += $"\n    the ROM then left these different from its control run: {Ranges(Enumerable.Range(0, a.Length).Where(i => a[i] != c[i]))}";
+    return line;
 }
 
 (bool Kept, string? Error) Boot(string rom, string kind, byte[] nv, string romsDir, RomMap map)

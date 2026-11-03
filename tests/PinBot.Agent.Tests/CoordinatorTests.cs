@@ -509,13 +509,20 @@ public class CompetitionBlockerTests
         Assert.Null(TestData.Map("bbb109").CompetitionBlocker);
     }
 
-    /// <summary>Hook 5.01 and Star Wars 1.07 reset a correct ladder in the emulator self-test: not offered.</summary>
+    /// <summary>Hook and Star Wars reset a table whose top score was below their floor; the ladder goes below it.</summary>
     [Fact]
-    public void Roms_the_self_test_saw_rejecting_a_ladder_are_not_offered()
+    public void Data_East_top_score_is_kept_and_the_ladder_fills_the_places_below()
     {
-        Assert.Contains("emulator self-test", TestData.Map("hook_501").CompetitionBlocker);
-        Assert.Contains("emulator self-test", TestData.Map("stwr_107").CompetitionBlocker);
-        Assert.Null(TestData.Map("lw3_208").CompetitionBlocker); // other Data East games kept it
+        var map = TestData.Map("tmnt_104");
+        var original = TestData.Nv("tmnt_104");
+        var img = map.BuildCompetitionImage(original);
+        Assert.True(img.Ok, img.Problem);
+        var before = HighScoreReader.Extract(map, original).Entries.Where(e => e.IsHighScore).ToList();
+        var after = HighScoreReader.Extract(map, img.Bytes!).Entries.Where(e => e.IsHighScore).ToList();
+        Assert.Equal(before[0].Score, after[0].Score);
+        Assert.Equal(Enumerable.Range(1, after.Count - 1).Reverse().Select(i => i * 10_000L), after.Skip(1).Select(e => e.Score!.Value));
+        Assert.Null(TestData.Map("hook_501").CompetitionBlocker); // once blocked by name
+        Assert.Null(TestData.Map("stwr_107").CompetitionBlocker);
     }
 
     static int NibbleSum(byte[] nv, EntryDef e) =>

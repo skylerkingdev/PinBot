@@ -17,14 +17,18 @@ public sealed partial class RomMap
     /// ROM's table normal: an all-zero table made the cabinet's Baywatch ask for initials six times in one game.
     /// The result is verified by decoding it; any doubt returns a Problem instead of bytes.
     /// </summary>
-    public CompetitionImage BuildCompetitionImage(byte[] original)
+    public CompetitionImage BuildCompetitionImage(byte[] original) =>
+        BuildCompetitionImage(original, n => LadderSteps.Select(step => Enumerable.Range(0, n).Select(i => (n - i) * step).ToList()));
+
+    /// <summary>The same with other ladders, tried in order until one fits (the emulator self-test tries a ROM's limits).</summary>
+    internal CompetitionImage BuildCompetitionImage(byte[] original, Func<int, IEnumerable<List<long>>> ladders)
     {
         if (!HasInitials) return Fail("ROM stores no initials");
         if (CompetitionBlocker is { } blocker) return Fail(blocker);
         var before = HighScoreReader.Extract(this, original);
         if (before.Status != ExtractStatus.Ok) return Fail($"original NVRAM not readable: {before.Status} {before.Detail}");
 
-        var main = HighScores.Where(d => d.Section == "high_scores" && d.Score != null && !KeepsChampion(d.Label)).ToList();
+        var main = HighScores.Where(d => d.Section == "high_scores" && d.Score != null && !KeepsOwn(d.Label)).ToList();
         var (block, mirrors) = HighScoreMirrors(original, main);
         if (Platform.StartsWith("gottlieb-system3", StringComparison.Ordinal) && mirrors.Count != 2)
             return Fail("Gottlieb System 3 keeps two backup copies of its high-score table, and they were not found in this NVRAM");
@@ -34,9 +38,9 @@ public sealed partial class RomMap
             return Fail("System 80B keeps its top score in triplicate, and the three copies were not found in this NVRAM");
         if (HasNibbleChecksums && main.Select((e, i) => NibbleChecksum(original, e) != (original[NibbleChecksumBase + i] & 0xF)).Any(bad => bad))
             return Fail("this NVRAM's high-score checksums do not follow the known System 80B rule");
-        foreach (var step in LadderSteps)
+        foreach (var ladder in ladders(main.Count))
         {
-            var ladder = Enumerable.Range(0, main.Count).Select(i => (main.Count - i) * step).ToList();
+            if (ladder.Count != main.Count) continue;
             var image = (byte[])original.Clone();
             bool encodable = true;
             for (int i = 0; i < main.Count && encodable; i++)
@@ -129,7 +133,6 @@ public sealed partial class RomMap
     public string? CompetitionBlocker =>
         OverlapProblem is { } overlap ? overlap
         : IsSystem80B && !HasNibbleChecksums ? "high scores are protected by checksums PinBot cannot update yet (Gottlieb System 80B)"
-        : RejectsLadder.Contains(Rom) ? "this ROM resets its high scores on a competition file (found by the emulator self-test); not offered until that is understood"
         : null;
 
     /// <summary>
@@ -155,17 +158,15 @@ public sealed partial class RomMap
     }
 
     /// <summary>
-    /// ROMs the emulator self-test (2026-10-13) showed resetting a correct-looking ladder to factory values, with other
-    /// bytes changed alongside that no map describes (a check PinBot does not know yet). Data East's other games kept it.
+    /// Scores the ladder leaves as the player's own. Williams System 11 games with a Champion slot (Dr. Dude, Whirlwind)
+    /// raised a laddered Champion to 4,040,000 in the emulator self-test and kept the rest of the ladder. Data East's Hook
+    /// and Star Wars put back their factory table whenever the top score was below a floor of their own (Hook: its
+    /// factory 400,000,000; one point less was enough), and kept the ladder below an untouched top score (self-test
+    /// 2026-11-03); Lethal Weapon 3 kept either. So on both platforms the top stays, and the ladder fills the places below.
     /// </summary>
-    static readonly HashSet<string> RejectsLadder = new(StringComparer.OrdinalIgnoreCase) { "hook_501", "stwr_107" };
-
-    /// <summary>
-    /// Williams System 11 games with a Champion slot (Dr. Dude, Whirlwind) raised a laddered Champion to 4,040,000 in
-    /// the emulator self-test and kept the rest of the ladder: the Champion stays the player's own, and the ladder fills
-    /// the places below it.
-    /// </summary>
-    bool KeepsChampion(string label) => Platform.StartsWith("williams-system11", StringComparison.Ordinal) && label == "Champion";
+    bool KeepsOwn(string label) =>
+        Platform.StartsWith("williams-system11", StringComparison.Ordinal) ? label == "Champion"
+        : Platform.StartsWith("dataeast", StringComparison.Ordinal) && label == HighScores.FirstOrDefault(d => d.Section == "high_scores")?.Label;
 
     int NibbleChecksum(byte[] nv, EntryDef e) =>
         (e.Initials?.FileOffsets ?? []).Concat(e.Score!.FileOffsets).Sum(o => nv[o] & 0xF) & 0xF;
@@ -245,7 +246,7 @@ public sealed partial class RomMap
         var after = HighScoreReader.Extract(this, image);
         if (after.Status != ExtractStatus.Ok) return $"competition image does not verify: {after.Status} {after.Detail}";
         var before = Decode(original);
-        bool Laddered(ScoreEntry e) => e.Section == "high_scores" && e.Score != null && !KeepsChampion(e.Label);
+        bool Laddered(ScoreEntry e) => e.Section == "high_scores" && e.Score != null && !KeepsOwn(e.Label);
         var mainScores = after.Entries.Where(Laddered).Select(e => e.Score!.Value).ToList();
         if (!mainScores.SequenceEqual(ladder)) return "competition image does not decode to the ladder";
         for (int i = 0; i < before.Count; i++)

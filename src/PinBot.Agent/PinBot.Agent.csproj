@@ -46,6 +46,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="PinBot.Agent.Tests" />
     <InternalsVisibleTo Include="PinBot.Server.Tests" />
+    <InternalsVisibleTo Include="pinbot-selftest" />
   </ItemGroup>
 
   <ItemGroup>
