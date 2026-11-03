@@ -89,7 +89,9 @@ on a real VPin, and the competition file follows it:
   and "8-digit B" layouts (Genesis, Hollywood Heat, Monte Carlo, …) are offered; other 80B layouts are not.
 - **Williams System 11** (Dr. Dude, Whirlwind): the ROM raises a laddered Champion, so the Champion stays the
   player's own and the ladder fills the places below it.
-- **Data East:** Hook 5.01 and Star Wars 1.07 reset with other undocumented bytes changed, so they are not offered.
+- **Data East:** Hook and Star Wars put back their factory table when the top score is below a floor of their own (Hook:
+  its factory top score, one point less was enough), so the top score stays the player's own and the ladder fills the
+  places below it (self-test 2026-11-03; Lethal Weapon 3 kept either table).
 - **Sega Whitestar:** long names (South Park, 10 characters) end at a `[` marker after a repeat of the last letter
   (`ABCC[[[[[[` is ABC).
 
