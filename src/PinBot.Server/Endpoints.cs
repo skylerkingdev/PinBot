@@ -75,9 +75,17 @@ public static class Endpoints
                 try
                 {
                     await using var filesTx = await conn.BeginTransactionAsync();
-                    var updates = await TableUpdates.RecordAsync(conn, filesTx, cabinet, files, now);
+                    var recorded = await TableUpdates.RecordAsync(conn, filesTx, cabinet, files, now);
                     await filesTx.CommitAsync();
-                    if (updates > 0) ctx.RequestServices.GetService<Discord.TableUpdatePublisher>()?.Wake();
+                    // visible in the server log (Container Manager): what PinBot made of each report
+                    var log = ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("TableUpdates");
+                    if (recorded.Baseline)
+                        log.LogInformation("table files of cabinet {Cabinet}: first report ({Files} tables), nothing announced", cabinet, recorded.Files);
+                    else if (recorded.Changes.Count == 0)
+                        log.LogInformation("table files of cabinet {Cabinet}: {Files} tables, no new table or version", cabinet, recorded.Files);
+                    else
+                        log.LogInformation("table files of cabinet {Cabinet}: {Changes}", cabinet, string.Join("; ", recorded.Changes));
+                    if (recorded.Changes.Count > 0) ctx.RequestServices.GetService<Discord.TableUpdatePublisher>()?.Wake();
                 }
                 catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException)
                 {

@@ -507,12 +507,12 @@ public static class Interactions
         string Show(string? id) => id is null ? "not set" : $"<#{id}>";
         var infoNow = await Settings.GetAsync(conn, Settings.InfoChannel);
         var updatesNow = await Settings.GetAsync(conn, Settings.UpdatesChannel);
-        return Reply((args.Count > 0 ? "✅ Saved. New competitions use these channels:\n" : "PinBot's channels:\n") +
+        return Reply((args.Count > 0 ? "✅ Saved. PinBot's channels (running competitions keep their card where it is):\n" : "PinBot's channels:\n") +
                      $"• Challenges: {Show(discord.ChannelId)}\n" +
                      $"• Weekly: {(discord.WeeklyChannelId is null ? $"{Show(discord.ChannelId)} (same as challenges)" : Show(discord.WeeklyChannelId))}\n" +
                      $"• Guide and new VPins: {Show(infoNow)}\n" +
                      $"• Table updates: {(updatesNow is null ? "not set (off)" : Show(updatesNow))}\n" +
-                     "PinBot needs **Send Messages**, **Embed Links** and **Pin Messages** in each.", ephemeral: true);
+                     "PinBot needs **Send Messages** and **Embed Links** in each, and **Pin Messages** in the competition channels.", ephemeral: true);
     }
 
     /// <summary>
@@ -538,7 +538,8 @@ public static class Interactions
         var where = channel is null
             ? "\n(Table updates are off on this server until a manager picks a channel with `/pinbot-admin channels updates:`.)"
             : $" Posts go to <#{channel}>.";
-        return Reply($"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}", ephemeral: true);
+        return Reply(Trim($"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}\n{await TableUpdatePublisher.RecentAsync(conn, caller.UserId)}", 1990),
+            ephemeral: true);
     }
 
     static async Task<IResult> PairAsync(NpgsqlConnection conn, Caller caller, DateTime now, ServerOptions options, DiscordOptions discord)
@@ -660,6 +661,6 @@ public static class Interactions
     /// <summary>Escapes Discord markdown in user-provided text.</summary>
     internal static string Md(string s) => new StringBuilder(s.Length).AppendJoin("", s.Select(c => "\\*_~`|>".Contains(c) ? "\\" + c : c.ToString())).ToString();
 
-    static string Trim(string s) => s.Length <= 100 ? s : s[..97] + "...";
+    static string Trim(string s, int max = 100) => s.Length <= max ? s : s[..(max - 3)] + "...";
 
 }

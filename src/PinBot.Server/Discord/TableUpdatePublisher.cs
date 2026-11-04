@@ -53,25 +53,38 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         foreach (var u in await conn.QueryAsync<TableUpdateRow>($"SELECT {Columns} FROM table_update u WHERE u.state = 'approved' ORDER BY u.id"))
             await PostAsync(conn, channel, u, ct);
 
-        var pending = (await conn.QueryAsync<TableUpdateRow>($"SELECT {Columns} FROM table_update u WHERE u.state = 'pending' ORDER BY u.id")).ToList();
-        foreach (var batch in pending.GroupBy(u => u.CabinetId))
+        // updates waiting to be asked about, and those that had nobody to ask (tried again: an owner may be known now)
+        var pending = (await conn.QueryAsync<TableUpdateRow>($"""
+            SELECT {Columns} FROM table_update u
+            WHERE u.state = 'pending' OR (u.state = 'undeliverable' AND u.owner_user_id IS NULL AND u.detected_at_utc >= @old)
+            ORDER BY u.id
+            """, new { old = now - AnswerWithin })).ToList();
+        foreach (var group in pending.GroupBy(u => u.CabinetId))
         {
-            if (batch.Max(u => DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc)) > now - Settle) continue; // more may follow
-            var owner = batch.First().OwnerUserId;
-            var ids = batch.Select(u => u.Id).ToArray();
+            if (group.Max(u => DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc)) > now - Settle) continue; // more may follow
+            var cabinet = group.Key;
+            var ids = group.Select(u => u.Id).ToArray();
+            // the member who paired it; for a cabinet paired before PinBot recorded that, the one with the most scores on it
+            var owner = await conn.ExecuteScalarAsync<string?>($"SELECT {Players.OwnerOf("c")} FROM cabinet c WHERE c.id = @cabinet", new { cabinet });
             if (owner is null || !owner.All(char.IsAsciiDigit))
             {
-                await SetStateAsync(conn, ids, "undeliverable", now); // paired before PinBot remembered who paired it
+                if (group.Any(u => u.State == "pending"))
+                    log.LogInformation("table updates on cabinet {Cabinet} not asked about: nobody known to have paired it or scored on it", cabinet);
+                await conn.ExecuteAsync("UPDATE table_update SET state = 'undeliverable', decided_at_utc = @now WHERE id = ANY(@ids) AND state = 'pending'",
+                    new { now, ids });
                 continue;
             }
+            await conn.ExecuteAsync("UPDATE table_update SET owner_user_id = @owner, state = 'pending' WHERE id = ANY(@ids)", new { owner, ids });
+            var batch = group.Select(u => u with { OwnerUserId = owner, State = "pending" }).ToList();
             var pref = await conn.ExecuteScalarAsync<string?>("SELECT share_updates FROM member_pref WHERE discord_user_id = @owner", new { owner }) ?? "ask";
+            log.LogInformation("table updates on cabinet {Cabinet} ({Count}): member {Owner} shares {Pref}", cabinet, batch.Count, owner, pref);
             if (pref == "never") { await SetStateAsync(conn, ids, "skipped", now); continue; }
             if (pref == "always")
             {
                 foreach (var u in batch) await PostAsync(conn, channel, u, ct);
                 continue;
             }
-            if (!await AskAsync(conn, owner, channel, batch.ToList(), now, ct)) return; // Discord trouble: next pass
+            if (!await AskAsync(conn, owner, channel, batch, now, ct)) return; // Discord trouble: next pass
         }
     }
 
@@ -95,6 +108,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
                 UPDATE table_update SET state = 'asked', dm_channel_id = @dm, dm_message_id = @message
                 WHERE id = ANY(@ids) AND state = 'pending'
                 """, new { dm, message, ids });
+            log.LogInformation("asked member {Owner} about {Count} table update(s)", owner, ids.Length);
             return true;
         }
         catch (DiscordRestException ex) when (ex.Status is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest)
@@ -169,6 +183,51 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
                 return null;
         }
     }
+
+    /// <summary>
+    /// The latest table changes PinBot noticed on the member's VPins, and what became of each: for /pinbot updates, so
+    /// a member can see why something was or wasn't shared.
+    /// </summary>
+    public static async Task<string> RecentAsync(NpgsqlConnection conn, string userId)
+    {
+        var cabinets = (await conn.QueryAsync<(string Id, string Name, DateTime? Reported)>($"""
+            SELECT c.id, c.name, c.files_reported_at_utc FROM cabinet c
+            WHERE c.revoked_at_utc IS NULL AND {Players.OwnerOf("c")} = @userId ORDER BY c.name
+            """, new { userId })).ToList();
+        if (cabinets.Count == 0) return "\nNo VPin is linked to you yet (pair one with `/pinbot pair`).";
+        var sb = new StringBuilder();
+        foreach (var c in cabinets)
+        {
+            sb.Append($"\n**{Interactions.Md(c.Name)}**: ");
+            if (c.Reported is not { } reported)
+            {
+                sb.Append("hasn't sent its table details yet (its PinBot updates itself when no table is running).");
+                continue;
+            }
+            sb.Append($"tables last reported {Interactions.Ts(DateTime.SpecifyKind(reported, DateTimeKind.Utc), "R")}.");
+            var recent = (await conn.QueryAsync<TableUpdateRow>($"""
+                SELECT {Columns} FROM table_update u WHERE u.cabinet_id = @Id ORDER BY u.id DESC LIMIT 5
+                """, new { c.Id })).ToList();
+            if (recent.Count == 0) sb.Append(" No new table or version noticed since then. (Putting back the same version counts as no change.)");
+            foreach (var u in recent)
+                sb.Append($"\n• **{Title(u)}** {(u.Kind == "added" ? "new" : "updated")}{(Change(u) is { Length: > 0 } ch ? $", {ch}" : "")}, " +
+                          $"{Interactions.Ts(DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc), "R")}: {StateText(u.State)}");
+        }
+        return sb.ToString();
+    }
+
+    static string StateText(string state) => state switch
+    {
+        "pending" => "about to ask you (a couple of minutes after the change)",
+        "asked" => "waiting for your answer in a DM",
+        "approved" => "being shared",
+        "shared" => "shared",
+        "skipped" => "not shared",
+        "superseded" => "replaced by a newer change",
+        "expired" => "not answered within 7 days",
+        "undeliverable" => "PinBot couldn't DM you (Discord: allow direct messages from this server's members)",
+        _ => state,
+    };
 
     /// <summary>
     /// A pick from a dropdown on a one-table question: the VPS entry the member says it is (or "not on VPS"). Only the

@@ -262,6 +262,48 @@ public class TableUpdateFlowTests
     }
 
     [Fact]
+    public async Task A_vpin_paired_before_owners_were_recorded_asks_its_top_scorer_and_waits_until_one_is_known()
+    {
+        await using var s = await TestServer.StartWithDiscordAsync();
+        await AskAsync(s, Command("channels", [Opt("updates", "chanU")], permissions: Manager, command: "pinbot-admin"));
+        var (id, cab, _) = await s.PairCabinetAsync("Old VPin", TestServer.Table("afm_113b"));
+        Assert.Equal(1, await s.CountAsync($"SELECT count(*) FROM cabinet WHERE id = '{id}' AND paired_by IS NULL"));
+        await ReportAsync(cab, File24("2.0"));
+        await ReportAsync(cab, File24("2.4.1"));
+        var publisher = s.Service<TableUpdatePublisher>();
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'undeliverable'")); // nobody to ask yet
+        Assert.Empty(s.Discord!.Messages);
+
+        // its owner plays and scores on it: from then on they are the one asked, including about that waiting update
+        await s.SetMembersAsync(("555", "Bob | [BOB]"));
+        var comp = await s.StartCompetitionAsync("twenty4_150");
+        s.Clock.Advance(TimeSpan.FromMinutes(5)); // a game played after the start
+        var outcome = Assert.Single(await TestServer.SubmitAsync(cab, s.Event(comp.Id, "BOB", 1_000_000, rom: "twenty4_150")));
+        Assert.Equal("accepted", outcome.Status);
+        await publisher.RunOnceAsync(default);
+        Assert.Single(In(s, "dm-555"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'asked' AND owner_user_id = '555'"));
+    }
+
+    [Fact]
+    public async Task Updates_command_lists_what_happened_to_recent_changes()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        var none = (await AskAsync(s, Command("updates", userId: Owner)))["content"]!.GetValue<string>();
+        Assert.Contains("**Garage**: tables last reported", none);
+        Assert.Contains("No new table or version noticed", none);
+
+        await ReportAsync(cab, File24("2.4.1"));
+        var waiting = (await AskAsync(s, Command("updates", userId: Owner)))["content"]!.GetValue<string>();
+        Assert.Contains("**24 (Stern 2009)** updated, 2.0 → **2.4.1**", waiting);
+        Assert.Contains("about to ask you", waiting);
+        Assert.Contains("No VPin is linked to you", (await AskAsync(s, Command("updates", userId: "999")))["content"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task An_agent_without_files_leaves_the_tables_alone()
     {
         var (s, cab) = await SetupAsync();

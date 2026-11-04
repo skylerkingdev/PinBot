@@ -13,7 +13,14 @@ public static class TableUpdates
 {
     public const int MaxField = 200;
 
-    public sealed record Change(TableFile File, string Kind, string? OldVersion);
+    public sealed record Change(TableFile File, string Kind, string? OldVersion)
+    {
+        public override string ToString() =>
+            $"{File.Name ?? File.Table} {(Kind == "added" ? $"added ({File.Version ?? "no version"})" : $"{OldVersion} -> {File.Version}")}";
+    }
+
+    /// <summary>What one report contained: how many files, whether it was the cabinet's first (silent), and what changed.</summary>
+    public sealed record Recorded(int Files, bool Baseline, IReadOnlyList<Change> Changes);
 
     /// <summary>
     /// Compares a cabinet's new list of table files with its previous one. A file that is gone and another that
@@ -71,9 +78,9 @@ public static class TableUpdates
 
     /// <summary>
     /// Stores the cabinet's reported files and records what changed, inside the inventory's transaction. A newer update
-    /// of a table replaces one still waiting for its member's answer. Returns how many updates were recorded.
+    /// of a table replaces one still waiting for its member's answer.
     /// </summary>
-    public static async Task<int> RecordAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string cabinet, IEnumerable<TableFile> reported, DateTime now)
+    public static async Task<Recorded> RecordAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string cabinet, IEnumerable<TableFile> reported, DateTime now)
     {
         var files = reported.Select(Sanitize).Where(f => f.Table.Length > 0)
             .GroupBy(f => f.Table, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
@@ -110,7 +117,7 @@ public static class TableUpdates
                 FROM cabinet WHERE id = @cabinet
                 """, p, tx);
         }
-        return changes.Count;
+        return new(files.Count, baseline, changes);
     }
 
     static DynamicParameters Params(string cabinet, TableFile f)
