@@ -317,7 +317,8 @@ public sealed partial class SessionWatcher(
                 continue;
             }
             var info = Inventory.Describe(path, inst, maps, current, scriptCache);
-            if (i >= 0 && Sync.AgentSync.Inventory([list[i]], current).SequenceEqual(Sync.AgentSync.Inventory([info], current))) { list[i] = info; continue; }
+            if (i >= 0 && Sync.AgentSync.Inventory([list[i]], current).SequenceEqual(Sync.AgentSync.Inventory([info], current))
+                && Sync.AgentSync.Files([list[i]]).SequenceEqual(Sync.AgentSync.Files([info]))) { list[i] = info; continue; }
             if (i >= 0) list[i] = info; else list.Add(info);
             changed = true;
             Log.Info($"[tables] {Path.GetFileNameWithoutExtension(path)}: {(info.Eligible ? $"eligible ({info.Rom})" : info.Problem)}");
@@ -499,6 +500,24 @@ public sealed partial class SessionWatcher(
                 w.Renamed += (_, e) => { TableFileChanged(e.OldFullPath); TableFileChanged(e.FullPath); };
                 w.EnableRaisingEvents = true;
                 watchers.Add(w);
+                // a new or replaced backglass changes the table's description (table-update posts), not its competitions
+                var b = new FileSystemWatcher(dir, "*.directb2s")
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                    InternalBufferSize = 8192,
+                };
+                void BackglassChanged(string path)
+                {
+                    var vpx = Path.ChangeExtension(path, ".vpx");
+                    if (File.Exists(vpx)) TableFileChanged(vpx);
+                }
+                b.Created += (_, e) => BackglassChanged(e.FullPath);
+                b.Changed += (_, e) => BackglassChanged(e.FullPath);
+                b.Deleted += (_, e) => BackglassChanged(e.FullPath);
+                b.Renamed += (_, e) => { BackglassChanged(e.OldFullPath); BackglassChanged(e.FullPath); };
+                b.EnableRaisingEvents = true;
+                watchers.Add(b);
             }
             catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
             {

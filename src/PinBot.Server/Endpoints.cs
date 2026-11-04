@@ -1,4 +1,5 @@
 using Dapper;
+using Npgsql;
 using PinBot.Contracts;
 
 namespace PinBot.Server;
@@ -67,6 +68,23 @@ public static class Endpoints
                 VALUES (@cabinet, @table, @rom, @Eligible, @Reason, @now)
                 """, rows, tx);
             await tx.CommitAsync();
+            // table files as they describe themselves (newer agents only), for table-update posts. Separate from the
+            // competition inventory above, which is already saved: a problem here never costs a cabinet its competitions.
+            if (req.Files is { Count: <= MaxTablesPerInventory } files)
+            {
+                try
+                {
+                    await using var filesTx = await conn.BeginTransactionAsync();
+                    var updates = await TableUpdates.RecordAsync(conn, filesTx, cabinet, files, now);
+                    await filesTx.CommitAsync();
+                    if (updates > 0) ctx.RequestServices.GetService<Discord.TableUpdatePublisher>()?.Wake();
+                }
+                catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException)
+                {
+                    ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("TableUpdates")
+                        .LogError(ex, "table files of cabinet {Cabinet} not recorded", cabinet);
+                }
+            }
             publisher.Wake(); // a newly paired cabinet gets announced
             return Results.Ok(new InventoryResponse(rows.Count, rows.Where(r => r.Eligible).Select(r => r.rom).Distinct().Count()));
         });

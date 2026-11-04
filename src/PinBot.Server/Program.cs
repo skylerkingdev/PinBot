@@ -30,7 +30,14 @@ builder.Services.AddSingleton<InfoPublisher>();
 builder.Services.AddSingleton<CompetitionChanges>();
 builder.Services.AddSingleton<MemberSync>();
 builder.Services.AddSingleton<WeeklyScheduler>();
+builder.Services.AddSingleton<TableUpdatePublisher>();
 builder.Services.AddHostedService<DiscordBackground>();
+// the Virtual Pinball Spreadsheet, for links on table-update posts; PinBot__Vps__Url points at a mirror, empty turns it off
+if (builder.Configuration["PinBot:Vps:Url"] is not "")
+    builder.Services.AddSingleton<PinBot.Server.Vps.IVpsSource>(new PinBot.Server.Vps.HttpVpsSource(
+        builder.Configuration["PinBot:Vps:Url"] ?? PinBot.Server.Vps.HttpVpsSource.DefaultUrl));
+builder.Services.AddSingleton<PinBot.Server.Vps.VpsCatalog>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PinBot.Server.Vps.VpsCatalog>());
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

@@ -29,6 +29,7 @@ public sealed class TestServer : IAsyncDisposable
 
     readonly string _adminCs;
     readonly string _database;
+    Action<IServiceCollection>? _services;
     WebApplicationFactory<Program> _factory = null!;
 
     TestServer(string adminCs, string database)
@@ -38,7 +39,8 @@ public sealed class TestServer : IAsyncDisposable
         ConnectionString = new NpgsqlConnectionStringBuilder(adminCs) { Database = database, Pooling = false }.ConnectionString;
     }
 
-    public static async Task<TestServer> StartAsync()
+    /// <param name="services">extra test services (e.g. a fake VPS), added after the server's own</param>
+    public static async Task<TestServer> StartAsync(Action<IServiceCollection>? services = null)
     {
         var adminCs = AdminConnectionString();
         var db = "pinbot_t_" + Guid.NewGuid().ToString("N")[..10];
@@ -48,7 +50,7 @@ public sealed class TestServer : IAsyncDisposable
             await using var cmd = new NpgsqlCommand($"CREATE DATABASE {db}", conn);
             await cmd.ExecuteNonQueryAsync();
         }
-        var s = new TestServer(adminCs, db);
+        var s = new TestServer(adminCs, db) { _services = services };
         s.Boot();
         return s;
     }
@@ -81,14 +83,15 @@ public sealed class TestServer : IAsyncDisposable
             {
                 s.AddSingleton<TimeProvider>(Clock);
                 if (Discord != null) s.AddSingleton<PinBot.Server.Discord.IDiscordApi>(Discord);
+                _services?.Invoke(s);
             });
         });
         Admin = Client(AdminToken);
     }
 
-    public static async Task<TestServer> StartWithDiscordAsync()
+    public static async Task<TestServer> StartWithDiscordAsync(Action<IServiceCollection>? services = null)
     {
-        var s = await StartAsync();
+        var s = await StartAsync(services);
         s.Discord = new FakeDiscord();
         s.DiscordKey = new Org.BouncyCastle.Crypto.Parameters.Ed25519PrivateKeyParameters(new Org.BouncyCastle.Security.SecureRandom());
         await s.RestartAsync();

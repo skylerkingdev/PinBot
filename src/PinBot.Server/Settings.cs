@@ -17,6 +17,8 @@ public static class Settings
     public const string InfoChannel = "info_channel";
     public const string ChallengesChannel = "challenges_channel";
     public const string WeeklyChannel = "weekly_channel";
+    /// <summary>Where table updates are posted (docs/TABLE-UPDATES.md); unset: the feature is off.</summary>
+    public const string UpdatesChannel = "updates_channel";
     /// <summary>The guide message PinBot keeps in the info channel: "channel/message", and the hash of its content.</summary>
     public const string InfoGuideMessage = "info_guide_message";
     public const string InfoGuideHash = "info_guide_hash";

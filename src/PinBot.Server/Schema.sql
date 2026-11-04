@@ -198,3 +198,85 @@ CREATE TABLE IF NOT EXISTS initials_clash (
     PRIMARY KEY (initials, members)
 );
 ALTER TABLE result DROP COLUMN IF EXISTS owner_notified_at_utc;
+
+-- v17: table updates (docs/TABLE-UPDATES.md). Each cabinet's table files as they describe themselves, with or without a
+-- ROM (replaced wholesale on each report, like installation, but never used for competitions); the first report is a
+-- silent baseline. A new table or a new version becomes a table_update that the member who paired the cabinet is asked
+-- about (or that is shared at once, per their member_pref), then posted in the updates channel.
+ALTER TABLE cabinet ADD COLUMN IF NOT EXISTS files_reported_at_utc timestamptz;
+CREATE TABLE IF NOT EXISTS table_file (
+    cabinet_id       text NOT NULL REFERENCES cabinet (id),
+    table_name       text NOT NULL,
+    rom_id           text,
+    name             text,
+    version          text,
+    authors          text,
+    script_hash      text,
+    backglass_name   text,
+    backglass_author text,
+    backglass_dmd    int,
+    alt_color        boolean NOT NULL DEFAULT false,
+    alt_sound        boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (cabinet_id, table_name)
+);
+CREATE TABLE IF NOT EXISTS table_update (
+    id               bigserial PRIMARY KEY,
+    cabinet_id       text NOT NULL REFERENCES cabinet (id),
+    table_name       text NOT NULL,
+    kind             text NOT NULL CHECK (kind IN ('added', 'updated')),
+    old_version      text,
+    -- the file as reported when the update was seen (copied: the cabinet may change it again)
+    rom_id           text,
+    name             text,
+    version          text,
+    authors          text,
+    script_hash      text,
+    backglass_name   text,
+    backglass_author text,
+    backglass_dmd    int,
+    alt_color        boolean NOT NULL DEFAULT false,
+    alt_sound        boolean NOT NULL DEFAULT false,
+    detected_at_utc  timestamptz NOT NULL,
+    -- pending: not asked yet; asked: DM sent; approved: the member said share (posted next pass); shared: posted;
+    -- skipped: the member said no (or never shares); superseded: a newer update of the same table replaced it;
+    -- expired: no answer in time; undeliverable: no DM possible
+    state            text NOT NULL DEFAULT 'pending'
+                     CHECK (state IN ('pending', 'asked', 'approved', 'shared', 'skipped', 'superseded', 'expired', 'undeliverable')),
+    owner_user_id    text,
+    dm_channel_id    text,
+    dm_message_id    text,
+    post_channel_id  text,
+    post_message_id  text,
+    decided_at_utc   timestamptz
+);
+CREATE INDEX IF NOT EXISTS table_update_open ON table_update (cabinet_id, state) WHERE state IN ('pending', 'asked', 'approved');
+CREATE TABLE IF NOT EXISTS member_pref (
+    discord_user_id text PRIMARY KEY,
+    share_updates   text NOT NULL CHECK (share_updates IN ('ask', 'always', 'never'))
+);
+
+-- v18: the last good copy of the Virtual Pinball Spreadsheet catalog (compact JSON of the fields PinBot uses), so a
+-- restart doesn't need VPS. Optional: with no row, table-update posts go out without VPS links. The VPS entries a post
+-- linked are kept on the update, so a member can correct them later.
+CREATE TABLE IF NOT EXISTS vps_catalog (
+    id           int PRIMARY KEY CHECK (id = 1),
+    last_updated bigint NOT NULL,
+    games        int NOT NULL,
+    data         text NOT NULL,
+    saved_at_utc timestamptz NOT NULL
+);
+ALTER TABLE table_update ADD COLUMN IF NOT EXISTS vps_game_id  text;
+ALTER TABLE table_update ADD COLUMN IF NOT EXISTS vps_table_id text;
+ALTER TABLE table_update ADD COLUMN IF NOT EXISTS vps_b2s_id   text;
+
+-- v19: a member's own answer to "which VPS entry is this?", from the dropdowns on the table-update question. Kept per
+-- table file and version, so the same file is never asked about again. table_id/b2s_id: a VPS id, '' for "not on VPS".
+CREATE TABLE IF NOT EXISTS table_vps_choice (
+    cabinet_id    text NOT NULL REFERENCES cabinet (id),
+    table_name    text NOT NULL,
+    version       text NOT NULL DEFAULT '',
+    table_id      text,
+    b2s_id        text,
+    chosen_at_utc timestamptz NOT NULL,
+    PRIMARY KEY (cabinet_id, table_name, version)
+);

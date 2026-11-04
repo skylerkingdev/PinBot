@@ -92,9 +92,17 @@ public sealed class AgentSync(HttpClient http, Outbox outbox)
                 : new InventoryTable(Path.GetFileNameWithoutExtension(t.TablePath), t.Rom!, t.Eligible, t.Eligible ? null : t.Problem))
             .ToList();
 
+    /// <summary>Every table file as it describes itself (with or without a ROM), for table-update posts.</summary>
+    public static List<TableFile> Files(IEnumerable<TableInfo> tables) =>
+        tables.Select(t => new TableFile(
+                Path.GetFileNameWithoutExtension(t.TablePath), t.Rom, t.Meta?.Name, t.Meta?.Version, t.Meta?.Authors, t.Meta?.ScriptHash,
+                t.Backglass?.Name, t.Backglass?.Author, t.Backglass?.DmdType, t.AltColor, t.AltSound))
+            .ToList();
+
     public async Task PushInventoryAsync(IEnumerable<TableInfo> tables, CancellationToken ct = default)
     {
-        var r = await http.PutAsJsonAsync($"api/v1/agent/inventory", new InventoryRequest(Inventory(tables, LocalState.Load()), AgentVersion), ct);
+        var list = tables.ToList();
+        var r = await http.PutAsJsonAsync($"api/v1/agent/inventory", new InventoryRequest(Inventory(list, LocalState.Load()), AgentVersion, Files(list)), ct);
         r.EnsureSuccessStatusCode();
     }
 

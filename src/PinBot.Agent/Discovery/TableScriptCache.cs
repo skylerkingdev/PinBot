@@ -3,8 +3,11 @@ using System.Text.Json;
 
 namespace PinBot.Agent.Discovery;
 
-/// <summary>What a table's script says: the ROM names it uses, its NVRAM offset, and how the script was read.</summary>
-public sealed record ScriptFacts(List<string> Roms, int NvOffset, string Source);
+/// <summary>
+/// What a table's files say: the ROM names its script uses, its NVRAM offset, how the script was read, and (for the
+/// community's table-update posts) the table's own name, version and authors, its script hash, and its backglass.
+/// </summary>
+public sealed record ScriptFacts(List<string> Roms, int NvOffset, string Source, TableMeta? Meta = null, BackglassInfo? Backglass = null);
 
 /// <summary>
 /// Remembers each table's <see cref="ScriptFacts"/> by file size and modification time, so PinBot opens a .vpx only
@@ -14,7 +17,10 @@ public sealed class TableScriptCache(string path)
 {
     public static TableScriptCache Default { get; } = new(Path.Combine(LocalState.Dir, "tables-cache.json"));
 
-    sealed record Entry(long Length, long Modified, ScriptFacts Facts);
+    /// <summary>Bumped when <see cref="ScriptFacts"/> gains something read from the files: older entries are read again.</summary>
+    internal const int CurrentFormat = 2;
+
+    sealed record Entry(long Length, long Modified, ScriptFacts Facts, int Format = 0);
 
     ConcurrentDictionary<string, Entry>? _entries;
     bool _dirty;
@@ -36,14 +42,16 @@ public sealed class TableScriptCache(string path)
 
     public ScriptFacts Get(string vpxPath, Func<ScriptFacts> read)
     {
-        // a sidecar .vbs (preferred by VPX) counts too: either file changing means the script must be read again
+        // a sidecar .vbs (preferred by VPX) and the .directb2s backglass count too: any of them changing means reading again
         var info = new FileInfo(vpxPath);
         var vbs = new FileInfo(Path.ChangeExtension(vpxPath, ".vbs"));
-        long length = (info.Exists ? info.Length : -1) + (vbs.Exists ? (vbs.Length + 1) << 40 : 0);
-        long modified = Math.Max(info.Exists ? info.LastWriteTimeUtc.Ticks : 0, vbs.Exists ? vbs.LastWriteTimeUtc.Ticks : 0);
-        if (Entries.TryGetValue(vpxPath, out var e) && e.Length == length && e.Modified == modified) return e.Facts;
+        var b2s = new FileInfo(Backglass.PathFor(vpxPath));
+        long length = (info.Exists ? info.Length : -1) + (vbs.Exists ? (vbs.Length + 1) << 40 : 0) + (b2s.Exists ? (b2s.Length + 1) * 31 : 0);
+        long modified = Math.Max(Math.Max(info.Exists ? info.LastWriteTimeUtc.Ticks : 0, vbs.Exists ? vbs.LastWriteTimeUtc.Ticks : 0),
+            b2s.Exists ? b2s.LastWriteTimeUtc.Ticks : 0);
+        if (Entries.TryGetValue(vpxPath, out var e) && e.Length == length && e.Modified == modified && e.Format == CurrentFormat) return e.Facts;
         var facts = read();
-        Entries[vpxPath] = new Entry(length, modified, facts);
+        Entries[vpxPath] = new Entry(length, modified, facts, CurrentFormat);
         _dirty = true;
         return facts;
     }

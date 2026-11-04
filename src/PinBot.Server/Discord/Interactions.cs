@@ -49,6 +49,11 @@ public static class Interactions
             { "type": 1, "name": "end", "description": "End a competition early (one you started; managers: any)",
               "options": [ { "type": 4, "name": "competition", "description": "Which competition to end", "required": true, "autocomplete": true } ] },
             { "type": 1, "name": "pair", "description": "Connect your VPin: get pinbot.exe and a one-time pairing line" },
+            { "type": 1, "name": "updates", "description": "Whether PinBot shares the tables you install or update (leave empty to see)",
+              "options": [
+                { "type": 3, "name": "share", "description": "When to share", "required": false,
+                  "choices": [ { "name": "Ask me each time", "value": "ask" }, { "name": "Always share", "value": "always" },
+                               { "name": "Never share, don't ask", "value": "never" } ] } ] },
             { "type": 1, "name": "help", "description": "How PinBot works (only you see it)" }
           ]
         },
@@ -60,7 +65,8 @@ public static class Interactions
               "options": [
                 { "type": 7, "name": "challenges", "description": "Channel for challenge leaderboards", "required": false, "channel_types": [0] },
                 { "type": 7, "name": "weekly", "description": "Channel for weekly competition leaderboards", "required": false, "channel_types": [0] },
-                { "type": 7, "name": "info", "description": "Channel for the guide, new VPins and update news", "required": false, "channel_types": [0] } ] },
+                { "type": 7, "name": "info", "description": "Channel for the guide, new VPins and update news", "required": false, "channel_types": [0] },
+                { "type": 7, "name": "updates", "description": "Channel for members' table updates (off until set)", "required": false, "channel_types": [0] } ] },
             { "type": 1, "name": "weekly", "description": "Automatic weekly competition: on/off and when it starts",
               "options": [
                 { "type": 5, "name": "enabled", "description": "On or off", "required": true },
@@ -87,7 +93,8 @@ public static class Interactions
     }
 
     static async Task<IResult> HandleAsync(HttpContext ctx, DiscordOptions discord, Db db, TimeProvider clock,
-        ServerOptions options, LeaderboardPublisher publisher, WeeklyScheduler weekly, CompetitionChanges changes)
+        ServerOptions options, LeaderboardPublisher publisher, WeeklyScheduler weekly, CompetitionChanges changes, TableUpdatePublisher tableUpdates,
+        Vps.VpsCatalog vps)
     {
         if (!discord.Enabled) return Results.NotFound();
         // anyone can call this address: refuse oversized bodies before buffering them (Discord's are a few KB)
@@ -101,6 +108,26 @@ public static class Interactions
         var interaction = JsonNode.Parse(body)!;
         var type = interaction["type"]!.GetValue<int>();
         if (type == 1) return Json(new JsonObject { ["type"] = 1 }); // PING
+        // the buttons on a table-update question come from a DM: no server, the clicker is "user" (checked against the owner)
+        if (type == 3 && interaction["data"]?["custom_id"]?.GetValue<string>() is { } tu && tu.StartsWith(TableUpdatePublisher.SharePrefix, StringComparison.Ordinal))
+        {
+            var clicker = (interaction["user"] ?? interaction["member"]?["user"])?["id"]?.GetValue<string>();
+            var messageId = interaction["message"]?["id"]?.GetValue<string>();
+            if (clicker is null || messageId is null) return Results.BadRequest();
+            await using var c = await db.OpenAsync();
+            if (tu is TableUpdatePublisher.PickTable or TableUpdatePublisher.PickBackglass)
+            {
+                var value = interaction["data"]?["values"]?[0]?.GetValue<string>();
+                // the redrawn question (dropdowns keep the pick); nothing changes if it is no longer open
+                return await TableUpdatePublisher.PickAsync(c, tu, value, clicker, messageId, vps.Current, now) is { } redrawn
+                    ? Json(new JsonObject { ["type"] = 7, ["data"] = redrawn })
+                    : Update("This question was already answered or is too old.");
+            }
+            var answer = await TableUpdatePublisher.AnswerAsync(c, tu, clicker, messageId, now);
+            if (answer is null) return Update("This question was already answered or is too old.");
+            tableUpdates.Wake();
+            return Update(answer);
+        }
         if (interaction["guild_id"]?.GetValue<string>() != discord.GuildId) return Reply("PinBot is not set up for this server.", ephemeral: true);
 
         var member = interaction["member"]!;
@@ -141,6 +168,7 @@ public static class Interactions
             (_, "end") => await EndAsync(conn, args, caller, now, options, publisher, changes),
             (_, "pair") => await PairAsync(conn, caller, now, options, discord),
             (_, "guest") => await GuestAsync(conn, args, caller, now, options, publisher),
+            (_, "updates") => await UpdatesAsync(conn, args, caller),
             _ => Reply("Unknown command.", ephemeral: true),
         };
     }
@@ -474,14 +502,43 @@ public static class Interactions
             discord.WeeklyChannelId = weeklyChannel;
         }
         if (Picked("info") is { } info) await Settings.SetAsync(conn, Settings.InfoChannel, info); // the guide is posted there next pass
+        if (Picked("updates") is { } updates) await Settings.SetAsync(conn, Settings.UpdatesChannel, updates);
         if (args.Count > 0) publisher.Wake();
         string Show(string? id) => id is null ? "not set" : $"<#{id}>";
         var infoNow = await Settings.GetAsync(conn, Settings.InfoChannel);
+        var updatesNow = await Settings.GetAsync(conn, Settings.UpdatesChannel);
         return Reply((args.Count > 0 ? "✅ Saved. New competitions use these channels:\n" : "PinBot's channels:\n") +
                      $"• Challenges: {Show(discord.ChannelId)}\n" +
                      $"• Weekly: {(discord.WeeklyChannelId is null ? $"{Show(discord.ChannelId)} (same as challenges)" : Show(discord.WeeklyChannelId))}\n" +
                      $"• Guide and new VPins: {Show(infoNow)}\n" +
+                     $"• Table updates: {(updatesNow is null ? "not set (off)" : Show(updatesNow))}\n" +
                      "PinBot needs **Send Messages**, **Embed Links** and **Pin Messages** in each.", ephemeral: true);
+    }
+
+    /// <summary>
+    /// /pinbot updates [share]: whether the tables a member installs or updates are shared in the updates channel. Ask
+    /// (the default) sends a DM with each change; always shares without asking; never neither asks nor shares.
+    /// </summary>
+    static async Task<IResult> UpdatesAsync(NpgsqlConnection conn, Dictionary<string, JsonNode> args, Caller caller)
+    {
+        var saved = false;
+        if (args.TryGetValue("share", out var s) && s["value"]!.GetValue<string>() is "ask" or "always" or "never")
+        {
+            await TableUpdatePublisher.SetPrefAsync(conn, caller.UserId, s["value"]!.GetValue<string>());
+            saved = true;
+        }
+        var pref = await conn.ExecuteScalarAsync<string?>("SELECT share_updates FROM member_pref WHERE discord_user_id = @id", new { id = caller.UserId }) ?? "ask";
+        var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel);
+        var state = pref switch
+        {
+            "always" => "**always shared**: each table you install or update on your VPin is posted without asking.",
+            "never" => "**never shared**: PinBot doesn't ask and doesn't post.",
+            _ => "**asked each time**: PinBot sends you a DM when you install or update a table, and posts it only if you say so.",
+        };
+        var where = channel is null
+            ? "\n(Table updates are off on this server until a manager picks a channel with `/pinbot-admin channels updates:`.)"
+            : $" Posts go to <#{channel}>.";
+        return Reply($"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}", ephemeral: true);
     }
 
     static async Task<IResult> PairAsync(NpgsqlConnection conn, Caller caller, DateTime now, ServerOptions options, DiscordOptions discord)

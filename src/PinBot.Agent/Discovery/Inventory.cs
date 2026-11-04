@@ -15,7 +15,11 @@ public sealed record TableInfo(
     NvState NvState,
     IReadOnlyList<string> NvCandidates,
     bool Supported,
-    string? SupportNote)
+    string? SupportNote,
+    TableMeta? Meta = null,
+    BackglassInfo? Backglass = null,
+    bool AltColor = false,
+    bool AltSound = false)
 {
     /// <summary>
     /// Could take part in a competition: a decoder for this exact revision, and evidence the ROM really writes this file:
@@ -45,11 +49,12 @@ public static class Inventory
         return vpxFiles.Select(f => Describe(f, inst, maps, state, cache)).ToList();
     }
 
-    /// <summary>The ROM names, NVRAM offset and script source of a table, from its script (or the cache).</summary>
+    /// <summary>The ROM names, NVRAM offset and script source of a table, its own description, and its backglass header.</summary>
     public static ScriptFacts ReadScript(string vpxPath)
     {
         var (script, source) = TableScript.Read(vpxPath);
-        return new(script is null ? [] : TableScript.FindRoms(script).ToList(), script is null ? 0 : TableScript.FindNvOffset(script), source);
+        return new(script is null ? [] : TableScript.FindRoms(script).ToList(), script is null ? 0 : TableScript.FindNvOffset(script), source,
+            TableMetadata.Read(vpxPath, script), Discovery.Backglass.Read(Discovery.Backglass.PathFor(vpxPath)));
     }
 
     public static TableInfo Describe(string vpxPath, Installations inst, MemoryMaps maps, LocalState state, TableScriptCache? cache = null)
@@ -78,7 +83,7 @@ public static class Inventory
         else if (scriptRoms.Count > 1) romSource = RomSource.Ambiguous;
 
         if (rom == null)
-            return new(vpxPath, null, romSource, scriptRoms, source, null, NvState.NoNvramFolder, [], false, null);
+            return new(vpxPath, null, romSource, scriptRoms, source, null, NvState.NoNvramFolder, [], false, null, facts.Meta, facts.Backglass);
 
         if (seen != null)
         {
@@ -94,7 +99,24 @@ public static class Inventory
         if (map is { HasInitials: false }) why = "ROM stores no initials, so scores cannot be attributed";
         else if (map?.CompetitionBlocker is { } blocker) why = blocker;
         bool supported = map is { HasInitials: true, CompetitionBlocker: null };
-        return new(vpxPath, rom, romSource, scriptRoms, source, nvPath, nvState, candidates, supported, why);
+        var (altColor, altSound) = Extras(rom, vpxPath, inst);
+        return new(vpxPath, rom, romSource, scriptRoms, source, nvPath, nvState, candidates, supported, why, facts.Meta, facts.Backglass, altColor, altSound);
+    }
+
+    /// <summary>
+    /// Whether PinMAME has a colorization (altcolor\&lt;rom&gt;) or alternative sound (altsound\&lt;rom&gt;) for this ROM, in
+    /// any PinMAME folder this table uses (the parent of each NVRAM folder). Shown on table-update posts only.
+    /// </summary>
+    public static (bool AltColor, bool AltSound) Extras(string rom, string vpxPath, Installations inst)
+    {
+        bool color = false, sound = false;
+        foreach (var nv in NvramDirsFor(vpxPath, inst))
+        {
+            if (Path.GetDirectoryName(nv) is not { } pinmame) continue;
+            color |= Directory.Exists(Path.Combine(pinmame, "altcolor", rom));
+            sound |= Directory.Exists(Path.Combine(pinmame, "altsound", rom));
+        }
+        return (color, sound);
     }
 
     /// <summary>Folders PinMAME may write &lt;rom&gt;.nv to for this table: a per-table pinmame\nvram folder, then global ones.</summary>

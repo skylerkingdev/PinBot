@@ -13,8 +13,20 @@ public sealed record PairRedeemResponse(string CabinetId, string Credential);
 
 public sealed record InventoryTable(string Table, string RomId, bool Eligible, string? Reason);
 
-/// <summary>Replaces the cabinet's whole inventory.</summary>
-public sealed record InventoryRequest(IReadOnlyList<InventoryTable> Tables, string AgentVersion);
+/// <summary>
+/// One table file on the cabinet as it describes itself, with or without a ROM: what table-update posts are made of.
+/// Name, Version and Authors are the table's own TableInfo; ScriptHash is the SHA-256 of the script VPX runs for it.
+/// </summary>
+public sealed record TableFile(
+    string Table, string? RomId, string? Name, string? Version, string? Authors, string? ScriptHash,
+    string? BackglassName = null, string? BackglassAuthor = null, int? BackglassDmdType = null,
+    bool AltColor = false, bool AltSound = false);
+
+/// <summary>
+/// Replaces the cabinet's whole inventory. <see cref="Files"/> (newer agents) lists every table file, including tables
+/// without a ROM; servers that predate it ignore it, and a missing list leaves the server's copy as it was.
+/// </summary>
+public sealed record InventoryRequest(IReadOnlyList<InventoryTable> Tables, string AgentVersion, IReadOnlyList<TableFile>? Files = null);
 
 public sealed record InventoryResponse(int Tables, int EligibleRoms);
 

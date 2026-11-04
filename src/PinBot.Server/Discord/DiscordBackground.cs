@@ -1,8 +1,8 @@
 namespace PinBot.Server.Discord;
 
-/// <summary>Registers the slash commands at startup, then runs the publisher, member sync and weekly scheduler loops.</summary>
+/// <summary>Registers the slash commands at startup, then runs the publisher, member sync, weekly scheduler and table-update loops.</summary>
 public sealed class DiscordBackground(DiscordOptions discord, IDiscordApi api, LeaderboardPublisher publisher, InfoPublisher info, MemberSync members,
-    WeeklyScheduler weekly, ILogger<DiscordBackground> log) : BackgroundService
+    WeeklyScheduler weekly, TableUpdatePublisher tableUpdates, ILogger<DiscordBackground> log) : BackgroundService
 {
     /// <summary>The least time between attempts after a failure (database restarting, Discord down): never a busy loop.</summary>
     public static readonly TimeSpan FailurePause = TimeSpan.FromSeconds(15);
@@ -16,7 +16,8 @@ public sealed class DiscordBackground(DiscordOptions discord, IDiscordApi api, L
             RegisterCommandsAsync(stop),
             Loop("leaderboard", async ct => { await publisher.RunOnceAsync(ct); await info.RunOnceAsync(ct); await publisher.WaitAsync(TimeSpan.FromSeconds(30), ct); }, TimeSpan.Zero, stop),
             Loop("members", members.RunOnceAsync, TimeSpan.FromMinutes(10), stop),
-            Loop("weekly", async ct => await weekly.RunOnceAsync(ct), TimeSpan.FromMinutes(1), stop));
+            Loop("weekly", async ct => await weekly.RunOnceAsync(ct), TimeSpan.FromMinutes(1), stop),
+            Loop("table updates", async ct => { await tableUpdates.RunOnceAsync(ct); await tableUpdates.WaitAsync(TimeSpan.FromSeconds(30), ct); }, TimeSpan.Zero, stop));
     }
 
     /// <summary>
