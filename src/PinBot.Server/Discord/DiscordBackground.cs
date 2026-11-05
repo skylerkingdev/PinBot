@@ -17,7 +17,7 @@ public sealed class DiscordBackground(DiscordOptions discord, IDiscordApi api, L
             Loop("leaderboard", async ct => { await publisher.RunOnceAsync(ct); await info.RunOnceAsync(ct); await publisher.WaitAsync(TimeSpan.FromSeconds(30), ct); }, TimeSpan.Zero, stop),
             Loop("members", members.RunOnceAsync, TimeSpan.FromMinutes(10), stop),
             Loop("weekly", async ct => await weekly.RunOnceAsync(ct), TimeSpan.FromMinutes(1), stop),
-            Loop("table updates", async ct => { await tableUpdates.RunOnceAsync(ct); await tableUpdates.WaitAsync(TimeSpan.FromSeconds(30), ct); }, TimeSpan.Zero, stop));
+            Loop("table updates", async ct => { await tableUpdates.RunOnceAsync(ct); await tableUpdates.WaitAsync(tableUpdates.NextWait, ct); }, TimeSpan.Zero, stop));
     }
 
     /// <summary>

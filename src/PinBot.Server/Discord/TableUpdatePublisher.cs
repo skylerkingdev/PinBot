@@ -19,8 +19,14 @@ public sealed record TableUpdateRow(long Id, string CabinetId, string TableName,
 /// </summary>
 public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider clock, ILogger<TableUpdatePublisher> log, Vps.VpsCatalog? vps = null)
 {
-    /// <summary>Changes are asked about once a cabinet has had none for this long: a batch of installs is one question.</summary>
-    public static readonly TimeSpan Settle = TimeSpan.FromMinutes(2);
+    /// <summary>
+    /// Changes are asked about once a cabinet has had none for this long: a batch of installs is one question. A
+    /// backglass or extras arriving later still join the update (or its post, for a day), so this can be short.
+    /// </summary>
+    public static readonly TimeSpan Settle = TimeSpan.FromSeconds(45);
+
+    /// <summary>How long the background loop may wait before the next pass: until the next batch has settled, at most 30 s.</summary>
+    public TimeSpan NextWait { get; private set; } = TimeSpan.FromSeconds(30);
     /// <summary>Unanswered questions (and updates never asked about) are dropped after this.</summary>
     public static readonly TimeSpan AnswerWithin = TimeSpan.FromDays(7);
     const int MaxPerQuestion = 10;
@@ -54,6 +60,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
 
     public async Task RunOnceAsync(CancellationToken ct)
     {
+        NextWait = TimeSpan.FromSeconds(30);
         var now = clock.GetUtcNow().UtcDateTime;
         await using var conn = await db.OpenAsync();
         await conn.ExecuteAsync("""
@@ -78,7 +85,14 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         // one question per cabinet for its tables, and a separate one for its POVs (each has its own member setting)
         foreach (var group in pending.GroupBy(u => (u.CabinetId, Class: Class(u))))
         {
-            if (group.Max(u => DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc)) > now - Settle) continue; // more may follow
+            var settled = group.Max(u => DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc)) + Settle;
+            if (settled > now)
+            {
+                // more may follow: come back right when this batch has settled
+                var wait = settled - now + TimeSpan.FromSeconds(1);
+                if (wait < NextWait) NextWait = wait;
+                continue;
+            }
             if ((group.Key.Class != "table" ? setupsChannel : updatesChannel) is not { } channel) continue; // nowhere to post these yet
             var cabinet = group.Key.CabinetId;
             var ids = group.Select(u => u.Id).ToArray();
@@ -352,7 +366,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
 
     static string StateText(string state) => state switch
     {
-        "pending" => "about to ask you (a couple of minutes after the change)",
+        "pending" => "about to ask you (within a minute of the change)",
         "asked" => "waiting for your answer in a DM",
         "approved" => "being shared",
         "shared" => "shared",

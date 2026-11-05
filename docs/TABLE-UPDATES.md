@@ -99,7 +99,10 @@ On each inventory push, compare each table with the cabinet's previous row:
 | no version string   | different size/mtime                        | silent (can't tell a real update)         |
 | present             | gone                                        | silent (removals aren't announced)        |
 
-Several changes inside ~10 minutes (a member installing a batch) become **one** DM with one row per table.
+Changes are asked about once a VPin has reported none for 45 seconds, so a member installing several tables in a row
+gets **one** DM with one row per table. The server checks again right when that wait ends, so a DM arrives about 45
+seconds after the VPin reports (the VPin reports a few seconds after a file changes, or after VPX closes). A backglass
+or extras arriving later still join the update, or its post for a day, so the wait doesn't need to be long.
 
 ### Discord: ask, then share
 
