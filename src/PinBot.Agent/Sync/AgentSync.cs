@@ -109,12 +109,25 @@ public sealed class AgentSync(HttpClient http, Outbox outbox)
     /// <summary>The newest agent release the server offered at the last <see cref="PullCompetitionsAsync"/> (0: none).</summary>
     public long LatestRelease { get; private set; }
 
+    /// <summary>How many shared setups (POVs) wait to be installed here, as of the last answer from the server.</summary>
+    public int PendingSetups { get; private set; }
+
+    public async Task<List<SetupInstall>> GetSetupsAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<SetupInstall>>("api/v1/agent/setups", ct) ?? [];
+
+    public async Task ReportSetupAsync(long id, SetupInstallResult result, CancellationToken ct = default)
+    {
+        var r = await http.PutAsJsonAsync($"api/v1/agent/setups/{id}", result, ct);
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode(); // not found: already settled
+    }
+
     /// <summary>Server competitions mapped onto this VPin's actual NVRAM files.</summary>
     public async Task<List<LocalCompetition>> PullCompetitionsAsync(IReadOnlyList<TableInfo> tables, CancellationToken ct = default)
     {
         var resp = await http.GetFromJsonAsync<AgentCompetitionsResponse>("api/v1/agent/competitions", ct)
                    ?? throw new InvalidDataException("empty competitions response");
         LatestRelease = resp.LatestRelease;
+        PendingSetups = resp.Setups;
         var skew = DateTime.UtcNow - resp.ServerTimeUtc;
         if (Math.Abs(skew.TotalMinutes) > 2)
             Log.Warn($"this PC's clock differs from the server's by {skew.TotalMinutes:0} min; deadlines are judged by the server clock");
@@ -130,6 +143,7 @@ public sealed class AgentSync(HttpClient http, Outbox outbox)
     {
         var resp = await http.GetFromJsonAsync<AgentCompetitionsResponse>($"api/v1/agent/competitions?known={known}&wait={LiveWaitSeconds}", ct)
                    ?? throw new InvalidDataException("empty competitions response");
+        PendingSetups = resp.Setups;
         return (Map(resp.Competitions, tables), resp.Version, resp.LatestRelease);
     }
 

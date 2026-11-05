@@ -430,6 +430,74 @@ public class TableUpdateFlowTests
     }
 
     [Fact]
+    public async Task A_friend_installs_a_shared_pov_on_their_vpin_and_can_undo_it()
+    {
+        const string Friend = "444555666";
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        var publisher = s.Service<TableUpdatePublisher>();
+        var (friendCabId, friendCab, _) = await s.PairCabinetAsync("Den");
+        await ExecAsync(s, $"UPDATE cabinet SET paired_by = '{Friend}' WHERE id = '{friendCabId}'");
+        await ReportAsync(friendCab, WithPov(File24("2.0", table: "24 Stern"), "ViewCabFOV = 60")); // the friend's own view
+        var (otherCabId, otherCab, _) = await s.PairCabinetAsync("Basement");
+        await ExecAsync(s, $"UPDATE cabinet SET paired_by = '777' WHERE id = '{otherCabId}'");
+        await ReportAsync(otherCab, WithPov(File24("2.4.1"), null));
+
+        // Skyler shares a cabinet POV
+        await AskAsync(s, Command("updates", [Opt("povs", "always")], userId: Owner));
+        await ReportAsync(cab, WithPov(File24("2.0"), null));
+        await ReportAsync(cab, WithPov(File24("2.0"), "ViewCabMode = 2\nViewCabScaleX = 1.2"));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        var (postId, post) = Assert.Single(In(s, "chanU"));
+        var use = post["components"]![0]!["components"]![0]!["custom_id"]!.GetValue<string>();
+        Assert.StartsWith(SetupInstalls.Use + ":", use);
+
+        async Task<JsonObject> Click(string id, string user)
+        {
+            var r = await SendAsync(s, DmPress(id, postId, user));
+            r.EnsureSuccessStatusCode();
+            return (await r.Content.ReadFromJsonAsync<JsonObject>())!;
+        }
+        Assert.Contains("No VPin is linked to you", (await Click(use, "999"))["data"]!["content"]!.GetValue<string>());
+        Assert.Contains("has v2.4.1: this POV was made for v2.0", (await Click(use, "777"))["data"]!["content"]!.GetValue<string>());
+        var offer = (await Click(use, Friend))["data"]!;
+        Assert.Equal(64, offer["flags"]!.GetValue<int>()); // only the friend sees it
+        Assert.Contains("fits your VPin", offer["content"]!.GetValue<string>());
+        var go = offer["components"]![0]!["components"]![0]!;
+        Assert.Equal("Install on Den", go["label"]!.GetValue<string>());
+
+        var queued = await Click(go["custom_id"]!.GetValue<string>(), Friend);
+        Assert.Contains("Queued for **Den**", queued["data"]!["content"]!.GetValue<string>());
+        Assert.Contains("already waiting", (await Click(go["custom_id"]!.GetValue<string>(), Friend))["data"]!["content"]!.GetValue<string>());
+
+        // the friend's VPin: told there's something, fetches it, installs it, reports
+        var comps = await friendCab.GetFromJsonAsync<AgentCompetitionsResponse>($"{ApiV1.Prefix}/agent/competitions");
+        Assert.Equal(1, comps!.Setups);
+        var install = Assert.Single((await friendCab.GetFromJsonAsync<List<SetupInstall>>($"{ApiV1.Prefix}/agent/setups"))!);
+        Assert.Equal(new SetupInstall(install.Id, "pov", "24 Stern", "cabinet", "ViewCabMode = 2\nViewCabScaleX = 1.2"), install);
+        Assert.Empty((await cab.GetFromJsonAsync<List<SetupInstall>>($"{ApiV1.Prefix}/agent/setups"))!); // only for that VPin
+        (await friendCab.PutAsJsonAsync($"{ApiV1.Prefix}/agent/setups/{install.Id}",
+            new SetupInstallResult("installed", null, "ViewCabFOV = 60", install.Content))).EnsureSuccessStatusCode();
+        await ReportAsync(friendCab, WithPov(File24("2.0", table: "24 Stern"), install.Content));
+        Assert.Equal(0, await s.CountAsync($"SELECT count(*) FROM table_update WHERE cabinet_id = '{friendCabId}'")); // not "their" change
+
+        await publisher.RunOnceAsync(default);
+        var (doneId, done) = Assert.Single(In(s, "dm-" + Friend));
+        Assert.Contains($"Installed <@{Owner}>'s cabinet POV for **24 (Stern 2009)** v2.0 on **Den**", done["content"]!.GetValue<string>());
+        var undo = done["components"]![0]!["components"]![0]!["custom_id"]!.GetValue<string>();
+
+        var r = await SendAsync(s, DmPress(undo, doneId, Friend));
+        Assert.Contains("Putting your own view back", (await r.Content.ReadFromJsonAsync<JsonObject>())!["data"]!["content"]!.GetValue<string>());
+        var back = Assert.Single((await friendCab.GetFromJsonAsync<List<SetupInstall>>($"{ApiV1.Prefix}/agent/setups"))!);
+        Assert.Equal("ViewCabFOV = 60", back.Content);
+        (await friendCab.PutAsJsonAsync($"{ApiV1.Prefix}/agent/setups/{back.Id}",
+            new SetupInstallResult("installed", null, install.Content, "ViewCabFOV = 60"))).EnsureSuccessStatusCode();
+        await publisher.RunOnceAsync(default);
+        Assert.Contains(s.Discord!.DirectMessages(Friend), m => m.Contains("Your own view of **24 (Stern 2009)** is back on **Den**"));
+    }
+
+    [Fact]
     public async Task A_pov_change_never_replaces_a_table_update_and_a_mode_switch_is_silent()
     {
         var (s, cab) = await SetupAsync();

@@ -54,6 +54,7 @@ public sealed partial class SessionWatcher(
             ApplyCompetitions(await sync.PullCompetitionsAsync(_tables, ct));
             // the waiting connection normally announces releases; without it (a proxy that cuts long requests) this does
             if (sync.LatestRelease > Sync.AutoUpdate.Version && Sync.AutoUpdate.Enabled && !_updatePending) _updatePending = true;
+            if (sync.PendingSetups > 0) _setupsPending = true;
             if (_syncFailures > 0) Log.Good("[sync] server reachable again");
             _syncFailures = 0;
             _nextSync = left > 0 || !_liveConnection ? DateTime.UtcNow + RetryInterval : DateTime.MaxValue;
@@ -67,6 +68,56 @@ public sealed partial class SessionWatcher(
             _nextSync = DateTime.UtcNow + backoff;
             var queued = outbox?.Pending().Count ?? 0;
             Log.Warn($"[sync] server unreachable ({ex.Message}); {queued} results queued; retry in {backoff.TotalMinutes:0.#} min");
+        }
+    }
+
+    volatile bool _setupsPending;
+
+    /// <summary>
+    /// With no table running: installs the shared POVs a member chose for this VPin (docs/TABLE-UPDATES.md), each only
+    /// into the table and view mode it was checked for, and tells the server what happened. The VPin checks everything
+    /// again itself: the server is never trusted to write anything but view settings.
+    /// </summary>
+    async Task MaybeInstallSetupsAsync(CancellationToken ct)
+    {
+        if (sync is null || !_setupsPending || !Quiet || VpxRunning()) return;
+        _setupsPending = false;
+        List<SetupInstall> pending;
+        try { pending = await sync.GetSetupsAsync(ct); }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _setupsPending = true; // next pass
+            return;
+        }
+        foreach (var s in pending)
+        {
+            var table = _tables.FirstOrDefault(t => Path.GetFileNameWithoutExtension(t.TablePath).Equals(s.Table, StringComparison.OrdinalIgnoreCase));
+            SetupInstallResult result;
+            if (s.Kind != "pov") result = new("refused", $"this PinBot can't install a {s.Kind} yet");
+            else if (table is null || !File.Exists(table.TablePath)) result = new("refused", "the table isn't on this VPin any more");
+            else if (inst.ViewMode is not { } mode || mode != s.Mode) result = new("refused", $"this VPin plays in {inst.ViewMode ?? "an unknown"} view mode, not {s.Mode}");
+            else
+            {
+                try
+                {
+                    var (before, after) = Discovery.Pov.Install(table.TablePath, mode, s.Content, Path.Combine(LocalState.Dir, "setup-backups"));
+                    result = new("installed", null, before, after);
+                    Log.Good($"[setups] installed a shared {mode} view for {s.Table}");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    result = new("refused", ex.Message);
+                }
+            }
+            if (result.State == "refused") Log.Warn($"[setups] not installed for {s.Table}: {result.Detail}");
+            try { await sync.ReportSetupAsync(s.Id, result, ct); }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { _setupsPending = true; return; }
+            // the server now knows this view: refresh the table here too, so it isn't announced as the member's own change
+            if (result.State == "installed" && table is not null)
+            {
+                var info = Inventory.Describe(table.TablePath, inst, maps, LocalState.Load(), scriptCache);
+                _tables = _tables.Select(t => t.TablePath.Equals(table.TablePath, StringComparison.OrdinalIgnoreCase) ? info : t).ToList();
+            }
         }
     }
 
@@ -233,6 +284,7 @@ public sealed partial class SessionWatcher(
                 if (version != known) ApplyCompetitions(comps);
                 known = version;
                 if (release > Sync.AutoUpdate.Version && Sync.AutoUpdate.Enabled && !_updatePending) { _updatePending = true; Wake(); }
+                if (sync.PendingSetups > 0 && !_setupsPending) { _setupsPending = true; Wake(); }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
             catch (Exception ex)
@@ -446,6 +498,7 @@ public sealed partial class SessionWatcher(
                 RefreshTables();
                 await MaybeSyncAsync(now: false, ct);
                 await MaybeUpdateAsync(ct);
+                await MaybeInstallSetupsAsync(ct);
                 if (!trimmed && Quiet) { Native.TrimMemory(); trimmed = true; }
             }
             catch (OperationCanceledException) { break; }

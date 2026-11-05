@@ -70,6 +70,90 @@ public static class Pov
         return keys.Count == 0 ? null : string.Join("\n", keys.Take(MaxKeys).Select(k => $"{k.Key} = {k.Value}"));
     }
 
+    /// <summary>
+    /// The ini's lines with the mode's view replaced: every View… key of that mode under [TableOverride] removed (a
+    /// shared POV holds only what differed from the table's own view, so leftovers would change it), then the new
+    /// lines written right under the section header (or a new section at the end). Everything else stays as it was.
+    /// </summary>
+    internal static List<string> Replace(IReadOnlyList<string> lines, string mode, IReadOnlyList<string> view)
+    {
+        var prefix = Prefixes[mode];
+        var result = new List<string>(lines.Count + view.Count + 2);
+        bool inOverride = false, written = false;
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim();
+            if (line.StartsWith('[') && line.EndsWith(']'))
+            {
+                inOverride = line[1..^1].Trim().Equals("TableOverride", StringComparison.OrdinalIgnoreCase);
+                result.Add(raw);
+                if (inOverride && !written) { result.AddRange(view); written = true; }
+                continue;
+            }
+            var eq = line.IndexOf('=');
+            if (inOverride && eq > 0 && line[..eq].Trim().StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+            result.Add(raw);
+        }
+        if (!written && view.Count > 0)
+        {
+            if (result.Count > 0 && result[^1].Trim().Length > 0) result.Add("");
+            result.Add("[TableOverride]");
+            result.AddRange(view);
+        }
+        return result;
+    }
+
+    /// <summary>Lines a VPin accepts for the mode: "View… = number" only, whatever the server sent.</summary>
+    internal static List<string>? Validate(string content, string mode)
+    {
+        if (!Prefixes.TryGetValue(mode, out var prefix)) return null;
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length > MaxKeys) return null;
+        var view = new List<string>();
+        foreach (var l in lines)
+        {
+            var eq = l.IndexOf('=');
+            if (eq <= 0) return null;
+            var key = l[..eq].Trim();
+            var value = l[(eq + 1)..].Trim();
+            if (!key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || key.Length > 40 || !key.All(char.IsAsciiLetterOrDigit)) return null;
+            if (value.Length > 24 || !double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _)) return null;
+            view.Add($"{key} = {value}");
+        }
+        return view;
+    }
+
+    /// <summary>
+    /// Writes a shared view into the table's .ini (a copy of the old file is kept in PinBot's folder first). Returns
+    /// the table's view before and after, or throws <see cref="InvalidDataException"/> with the reason it refused.
+    /// </summary>
+    public static (string? Previous, string? Now) Install(string vpxPath, string mode, string content, string backupDir)
+    {
+        var view = Validate(content, mode) ?? throw new InvalidDataException("the shared view isn't a plain list of view settings");
+        var ini = PathFor(vpxPath);
+        var previous = Read(vpxPath, mode)?.Settings;
+        if (view.Count == 0 && !File.Exists(ini)) return (previous, previous); // the table's own view already: nothing to write
+        string[] lines = [];
+        var bom = false;
+        var newline = "\r\n";
+        if (File.Exists(ini))
+        {
+            var bytes = File.ReadAllBytes(ini);
+            bom = bytes is [0xEF, 0xBB, 0xBF, ..];
+            var text = System.Text.Encoding.UTF8.GetString(bytes, bom ? 3 : 0, bytes.Length - (bom ? 3 : 0));
+            if (!text.Contains("\r\n") && text.Contains('\n')) newline = "\n";
+            lines = text.Split('\n').Select(l => l.TrimEnd('\r')).ToArray();
+            if (lines is [.., ""]) lines = lines[..^1]; // the final line break
+            Directory.CreateDirectory(backupDir);
+            File.Copy(ini, Path.Combine(backupDir, $"{Path.GetFileNameWithoutExtension(ini)}-{DateTime.UtcNow:yyyyMMddHHmmss}.ini"), overwrite: true);
+        }
+        var output = string.Join(newline, Replace(lines, mode, view)) + newline;
+        var tmp = ini + ".pinbot-tmp";
+        File.WriteAllText(tmp, output, new System.Text.UTF8Encoding(bom));
+        File.Move(tmp, ini, overwrite: true);
+        return (previous, Read(vpxPath, mode)?.Settings);
+    }
+
     static IEnumerable<(string Section, string Key, string Value)> Entries(IEnumerable<string> lines)
     {
         var section = "";

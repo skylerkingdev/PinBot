@@ -43,7 +43,16 @@ public sealed record AgentCompetition(
 
 /// <param name="Version">changes whenever a competition starts or ends; pass it back as known= to wait for the next change</param>
 /// <param name="LatestRelease">the signed release the server offers (0: none), so cabinets check for updates only when there is one</param>
-public sealed record AgentCompetitionsResponse(DateTime ServerTimeUtc, IReadOnlyList<AgentCompetition> Competitions, long Version = 0, long LatestRelease = 0);
+/// <param name="Setups">installs waiting for this cabinet (shared POVs): fetch them from agent/setups when no table runs</param>
+public sealed record AgentCompetitionsResponse(DateTime ServerTimeUtc, IReadOnlyList<AgentCompetition> Competitions, long Version = 0, long LatestRelease = 0,
+    int Setups = 0);
+
+/// <summary>Something a member chose to install on this VPin from another member's share. Kind "pov": <paramref name="Content"/>
+/// is the view keys for <paramref name="Mode"/> ("" puts the table's own view back).</summary>
+public sealed record SetupInstall(long Id, string Kind, string Table, string? Mode, string Content);
+
+/// <summary>What the VPin did: "installed" or "refused" (with why), and the table's view before and after.</summary>
+public sealed record SetupInstallResult(string State, string? Detail = null, string? Previous = null, string? Now = null);
 
 /// <summary>A table started (the cabinet is busy, not offline) or no table runs any more.</summary>
 public sealed record AgentActivity(bool Playing);

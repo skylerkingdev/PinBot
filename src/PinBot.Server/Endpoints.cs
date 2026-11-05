@@ -112,7 +112,21 @@ public static class Endpoints
             var now = ctx.Now();
             await using var conn = await db.OpenAsync();
             return Results.Ok(new AgentCompetitionsResponse(now, await Competitions.ForCabinetAsync(conn, ctx.CabinetId(), now, options.UploadGrace), version,
-                AgentDownload.LatestRelease() ?? 0));
+                AgentDownload.LatestRelease() ?? 0, await Discord.SetupInstalls.PendingCountAsync(conn, ctx.CabinetId(), now)));
+        });
+
+        // shared POVs a member chose to install on this VPin, and what the VPin did with each
+        agent.MapGet("/setups", async (HttpContext ctx, Db db) =>
+        {
+            await using var conn = await db.OpenAsync();
+            return Results.Ok(await Discord.SetupInstalls.PendingAsync(conn, ctx.CabinetId(), ctx.Now()));
+        });
+        agent.MapPut("/setups/{id:long}", async (long id, SetupInstallResult req, HttpContext ctx, Db db) =>
+        {
+            await using var conn = await db.OpenAsync();
+            if (!await Discord.SetupInstalls.ReportAsync(conn, ctx.CabinetId(), id, req, ctx.Now())) return Results.NotFound();
+            ctx.RequestServices.GetService<Discord.TableUpdatePublisher>()?.Wake(); // the member's DM
+            return Results.NoContent();
         });
 
         // a table started on this cabinet, or none runs any more: shown as busy (not offline) on cards and in /pinbot status

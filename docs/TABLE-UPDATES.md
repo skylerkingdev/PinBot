@@ -274,24 +274,36 @@ is posted. Status: built, and tested on a real VPin (2026-11-04: X-Files, cabine
 - **Not yet:** the sharer's screen size and orientation in the post (more useful than first thought, see above), and
   a legacy `.pov` file next to a table.
 
-### POVs, phase B: installing a shared POV (design)
+### POVs, phase B: installing a shared POV (built)
 
-- A member presses "Use this POV" on a post, or **subscribes** to a member's POVs ("Skyler's POV for
-  Transformers 2.4.1, `uyJ5RDRCu6`").
-- The agent applies it **only when the subscriber's table is the same entry** (the same confirmed or matched VPS ID, and
-  the same table version string from the .vpx). Otherwise it reports "made for a different version" and does nothing.
-- These are community-made files meant to be shared. They're kept on the PinBot server and size-limited (64 KB), so
-  these and script-fix patches (below) are the only things PinBot stores. Never tables, backglasses or ROMs (see [Rules](#rules)).
-- Safeguards on the cab:
-  - apply only when no table is running
-  - back up the existing file first, with undo via `/pinbot updates undo table:<name>` or the agent console
-  - replace the mode's whole set of `View…` keys: remove the member's other keys for that mode, then write the shared
-    ones (a shared POV holds only what differed from the table's view, see phase A)
-  - for a window-mode cabinet POV, compare the sharer's playfield screen with the member's and say so when they differ
-  - accept only a well-formed `.pov` (XML) or `.ini`; anything else is refused
-- **Competitions:** VPX 10.8 table `.ini` files can carry table options, which on some tables set difficulty or ball
-  count. Settings sync skips those keys, or holds the whole file while a competition on that game is running.
-  Camera-only POVs are always fine.
+Status: built, not yet tested on two real VPins.
+
+1. **"Use this POV"** is a button on every POV post. Pressing it answers privately (only the clicker sees it), after
+   checking each of their VPins: the same game (the table's own name, or its ROM), the **same table version**, and the
+   **same view mode**. Otherwise it says why: "has v2.4.1: this POV was made for v2.0", "plays in desktop mode: this is
+   a cabinet POV", "already has this view", or "No VPin is linked to you".
+2. **"Install on <VPin>"** queues the install (`setup_install`) and wakes that VPin's waiting connection: the same
+   long poll that brings competitions, so nothing new is opened on the member's network. The answer tells the
+   member's VPin how many installs wait (`Setups`); it fetches them from `agent/setups`.
+3. **The VPin installs it when no table is running**, and checks everything again itself (the server is never trusted
+   to write anything but view settings): the table is still there, its view mode matches, and every line is
+   `View<mode>… = number`, or the whole install is refused. It copies the table's `.ini` to PinBot's own
+   `setup-backups` folder, removes that mode's `View…` lines under `[TableOverride]` (a shared POV holds only what
+   differed from the table's view, see phase A), writes the shared ones, and keeps the file's encoding and line ends.
+   Everything else in the file stays.
+4. **It reports back** with the view before and after. The server records the new view as the table's known view, so
+   the VPin's next table list isn't taken for the member's own POV change (no "share your POV?" for what they just
+   installed).
+5. **The member gets a DM:** "Installed Skyler's cabinet POV for 24 v2.0 on Den", with an **Undo** button. Undo
+   queues putting back the view the VPin reported before the install, the same way. An install not picked up within
+   7 days is dropped, and the member is told.
+
+- **Generic by kind:** `setup_install.kind` is `pov` today; script fixes reuse the same queue, checks, report, DM and
+  Undo (next section).
+- **Competitions:** camera settings only, so a POV is always fine during a competition. Other table options (which on
+  some tables set difficulty or ball count) are never read, shared or written.
+- **Not yet:** comparing the sharer's playfield screen with the member's for window-mode cabinet POVs; subscribing to
+  a member's POVs; a legacy `.pov` file.
 
 ### Script fixes (`.vbs`): offered, shown, and installed only on the member's accept
 

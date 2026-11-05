@@ -62,6 +62,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             """, new { now, old = now - AnswerWithin });
         await CloseQuestionsAsync(conn, now, ct);
         await CompletePostsAsync(conn, ct);
+        await SetupInstalls.NotifyAsync(conn, api, log, now, ct);
         var (updatesChannel, setupsChannel) = await ChannelsAsync(conn);
         if (updatesChannel is null && setupsChannel is null) return; // the feature is off
 
@@ -713,6 +714,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         {
             ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() }, // shows the member's name, never pings
             ["embeds"] = new JsonArray(embed),
+            ["components"] = new JsonArray(SetupInstalls.UseButtonRow(u.Id)), // installs it on another member's VPin
         };
     }
 

@@ -119,6 +119,13 @@ public static class Interactions
             var messageId = interaction["message"]?["id"]?.GetValue<string>();
             if (clicker is null || messageId is null) return Results.BadRequest();
             await using var c = await db.OpenAsync();
+            // installing a shared POV: "Use this POV" on a post (private answer), "Install on …", "Undo" in the DM
+            if (tu.Split(':') is ["tu", "usepov", var useId] && long.TryParse(useId, out var useUpdate))
+                return Json(new JsonObject { ["type"] = 4, ["data"] = await SetupInstalls.UseAsync(c, useUpdate, clicker) });
+            if (tu.Split(':') is ["tu", "povgo", var goId, var goCabinet] && long.TryParse(goId, out var goUpdate))
+                return Update(await SetupInstalls.GoAsync(c, changes, goUpdate, goCabinet, clicker, now));
+            if (tu.Split(':') is ["tu", "povundo", var undoId] && long.TryParse(undoId, out var undoInstall))
+                return Update(await SetupInstalls.UndoAsync(c, changes, undoInstall, clicker, now));
             var value = interaction["data"]?["values"]?[0]?.GetValue<string>();
             JsonObject? redraw = null;
             if (tu == TableUpdatePublisher.FixPost) redraw = await TableUpdatePublisher.FixPostAsync(c, value, clicker, vps.Current);

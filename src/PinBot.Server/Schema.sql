@@ -302,3 +302,26 @@ ALTER TABLE table_update DROP CONSTRAINT IF EXISTS table_update_kind_check;
 ALTER TABLE table_update ADD CONSTRAINT table_update_kind_check CHECK (kind IN ('added', 'updated', 'pov'));
 ALTER TABLE member_pref ALTER COLUMN share_updates SET DEFAULT 'ask'; -- a member may set only their POV setting
 ALTER TABLE member_pref ADD COLUMN IF NOT EXISTS share_povs text NOT NULL DEFAULT 'ask' CHECK (share_povs IN ('ask', 'always', 'never'));
+
+-- v23: installing a shared POV on another member's VPin (POVs phase B). The member asks in Discord; the VPin fetches
+-- pending installs, applies them when no table runs and reports back; the member is DMed (with Undo). Generic by kind
+-- for script fixes later. content: what to write ('' puts the table's own view back); previous: the view before.
+CREATE TABLE IF NOT EXISTS setup_install (
+    id               bigserial PRIMARY KEY,
+    kind             text NOT NULL CHECK (kind IN ('pov')),
+    action           text NOT NULL CHECK (action IN ('install', 'undo')),
+    undo_of          bigint REFERENCES setup_install (id),
+    update_id        bigint REFERENCES table_update (id),
+    cabinet_id       text NOT NULL REFERENCES cabinet (id),
+    table_name       text NOT NULL,
+    mode             text,
+    content          text NOT NULL,
+    requested_by     text NOT NULL,
+    requested_at_utc timestamptz NOT NULL,
+    state            text NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'installed', 'refused', 'expired')),
+    detail           text,
+    previous         text,
+    done_at_utc      timestamptz,
+    notified_at_utc  timestamptz
+);
+CREATE INDEX IF NOT EXISTS setup_install_pending ON setup_install (cabinet_id) WHERE state = 'pending';

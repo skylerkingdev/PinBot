@@ -129,6 +129,15 @@ public static class TableUpdates
         var previous = (await conn.QueryAsync<FileRow>("SELECT * FROM table_file WHERE cabinet_id = @cabinet", new { cabinet }, tx))
             .Select(r => r.ToFile()).ToList();
         var changes = Detect(previous, files, baseline);
+        // a view this VPin just installed from another member's share (or put back) is not the member's own change
+        if (changes.Any(c => c.Kind == "pov"))
+        {
+            var installed = (await conn.QueryAsync<(string TableName, string Content)>("""
+                SELECT table_name, content FROM setup_install WHERE cabinet_id = @cabinet AND kind = 'pov' AND state = 'installed'
+                  AND done_at_utc >= @since
+                """, new { cabinet, since = now - TimeSpan.FromDays(30) }, tx)).ToHashSet();
+            changes.RemoveAll(c => c.Kind == "pov" && installed.Contains((c.File.Table, c.File.Pov ?? "")));
+        }
         var renamed = baseline ? [] : Pair(previous, files)
             .Where(p => p.Before is { } b && !string.Equals(b.Table, p.Now.Table, StringComparison.OrdinalIgnoreCase)).ToList();
 
