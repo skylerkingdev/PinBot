@@ -114,8 +114,19 @@ public static class TableUpdates
         if (gone.Length > 0)
             await conn.ExecuteAsync("UPDATE table_update SET state = 'removed', decided_at_utc = @now WHERE id = ANY(@gone)", new { now, gone }, tx);
 
-        foreach (var c in changes)
+        foreach (var change in changes)
         {
+            // the open update it replaces (a table read halfway through copying, or changed twice before the member
+            // answered): the change is still relative to what the member last had, so "new" stays new and an update
+            // keeps its first old version
+            var c = change;
+            var replaced = await conn.QueryFirstOrDefaultAsync<(string Kind, string? OldVersion)?>("""
+                SELECT kind, old_version FROM table_update
+                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND (table_name = @table OR (rom_id IS NOT NULL AND rom_id = @rom))
+                ORDER BY id LIMIT 1
+                """, new { cabinet, table = c.File.Table, rom = c.File.RomId }, tx);
+            if (replaced is { } r && (r.Kind == "added" || !string.Equals(r.OldVersion?.Trim(), c.File.Version?.Trim(), StringComparison.OrdinalIgnoreCase)))
+                c = c with { Kind = r.Kind, OldVersion = r.Kind == "added" ? null : r.OldVersion };
             await conn.ExecuteAsync("""
                 UPDATE table_update SET state = 'superseded', decided_at_utc = @now
                 WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND (table_name = @table OR (rom_id IS NOT NULL AND rom_id = @rom))
@@ -132,6 +143,16 @@ public static class TableUpdates
                 FROM cabinet WHERE id = @cabinet
                 """, p, tx);
         }
+        // an update not posted yet describes the file as it is now: a backglass, colorization or alt sound copied in after
+        // the table (installers copy the .vpx first) is part of the same setup
+        await conn.ExecuteAsync("""
+            UPDATE table_update u SET rom_id = f.rom_id, name = f.name, authors = f.authors, script_hash = f.script_hash,
+                backglass_name = f.backglass_name, backglass_author = f.backglass_author, backglass_dmd = f.backglass_dmd,
+                alt_color = f.alt_color, alt_sound = f.alt_sound
+            FROM table_file f
+            WHERE u.cabinet_id = @cabinet AND u.state IN ('pending', 'asked', 'approved')
+              AND f.cabinet_id = u.cabinet_id AND f.table_name = u.table_name AND COALESCE(f.version, '') = COALESCE(u.version, '')
+            """, new { cabinet }, tx);
         return new(files.Count, baseline, changes, gone.Length);
     }
 

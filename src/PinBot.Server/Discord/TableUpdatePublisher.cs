@@ -28,6 +28,8 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
     public const string Share = "tu:share", Always = "tu:always", Skip = "tu:skip", Never = "tu:never";
     /// <summary>The dropdowns on a one-table question: which VPS table entry / backglass entry it is.</summary>
     public const string PickTable = "tu:pick:table", PickBackglass = "tu:pick:b2s", NotOnVps = "none";
+    /// <summary>"Wrong match?" on a question PinBot is sure about: shows the dropdowns.</summary>
+    public const string ShowPicks = "tu:fix";
     const int MaxOptions = 25; // Discord's limit for a dropdown
 
     readonly SemaphoreSlim _wake = new(0);
@@ -319,7 +321,19 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         var cabinet = await conn.ExecuteScalarAsync<string?>("SELECT name FROM cabinet WHERE id = @CabinetId", new { u.CabinetId }) ?? "your VPin";
         var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel) ?? "0";
         var updated = customId == PickTable ? u with { VpsTableId = chosen } : u with { VpsB2sId = chosen };
-        return Question(cabinet, channel, [updated], index);
+        return Question(cabinet, channel, [updated], index, showPicks: true);
+    }
+
+    /// <summary>"Wrong match?": the same open one-table question, with its dropdowns. Null when it is no longer open.</summary>
+    public static async Task<JsonObject?> ShowPicksAsync(NpgsqlConnection conn, string userId, string messageId, Vps.VpsIndex? index)
+    {
+        var rows = (await conn.QueryAsync<TableUpdateRow>($"""
+            SELECT {Columns} FROM table_update u WHERE u.dm_message_id = @messageId AND u.owner_user_id = @userId AND u.state = 'asked'
+            """, new { messageId, userId })).ToList();
+        if (rows is not [var u] || index is null) return null;
+        var cabinet = await conn.ExecuteScalarAsync<string?>("SELECT name FROM cabinet WHERE id = @CabinetId", new { u.CabinetId }) ?? "your VPin";
+        var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel) ?? "0";
+        return Question(cabinet, channel, [u], index, showPicks: true);
     }
 
     public static Task SetPrefAsync(NpgsqlConnection conn, string userId, string pref) =>
@@ -339,7 +353,8 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         : "";
 
     /// <summary>The DM to the member: what PinBot noticed on their VPin, and whether to share it.</summary>
-    public static JsonObject Question(string cabinet, string channel, IReadOnlyList<TableUpdateRow> batch, Vps.VpsIndex? index = null)
+    /// <param name="showPicks">show the dropdowns even when PinBot is sure (the member pressed "Wrong match?", or picked)</param>
+    public static JsonObject Question(string cabinet, string channel, IReadOnlyList<TableUpdateRow> batch, Vps.VpsIndex? index = null, bool showPicks = false)
     {
         var sb = new StringBuilder($"🔄 PinBot noticed {(batch.Count == 1 ? "a table change" : $"{batch.Count} table changes")} on **{Interactions.Md(cabinet)}**:\n");
         foreach (var u in batch.Take(MaxPerQuestion))
@@ -352,7 +367,11 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         }
         if (batch.Count > MaxPerQuestion) sb.Append($"• …and {batch.Count - MaxPerQuestion} more\n");
         var one = batch.Count == 1 && index is not null ? Resolve(index, batch[0]) : null;
-        if (one is not null) sb.Append("If PinBot picked the wrong entry, choose the right one below. ");
+        // sure: the table entry (and the backglass, if there is one) found or chosen; then the dropdowns wait behind a button
+        var hasB2s = one is not null && (batch[0].BackglassAuthor is not null || batch[0].BackglassName is not null);
+        var sure = one is not null && (one.Table is not null || batch[0].VpsTableId == "") && (!hasB2s || one.Backglass is not null || batch[0].VpsB2sId == "");
+        var picks = one is not null && (showPicks || !sure);
+        if (picks) sb.Append("If PinBot picked the wrong entry, choose the right one below. ");
         sb.Append($"Share {(batch.Count == 1 ? "it" : "them")} in <#{channel}> so others can get the same setup?");
 
         var rows = new JsonArray(new JsonObject
@@ -364,7 +383,8 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
                 Button("Not this time", Skip, 2),
                 Button("Don't ask again", Never, 2)),
         });
-        if (one is not null)
+        if (one is not null && !picks) rows[0]!["components"]!.AsArray().Add(Button("Wrong match?", ShowPicks, 2));
+        if (one is not null && picks)
         {
             var u = batch[0];
             if (one.Game.Tables.Count > 0) rows.Add(Dropdown(PickTable, "Which table entry is it?", one.Game.Tables, one.Table?.Id ?? u.VpsTableId));

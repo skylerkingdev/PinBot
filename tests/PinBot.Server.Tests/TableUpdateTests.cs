@@ -253,7 +253,7 @@ public class TableUpdateFlowTests
         await ReportAsync(cab, File24("2.4.1"));
         await ReportAsync(cab, File24("2.4.2", table: "24 v2.4.2")); // renamed and updated again before being asked
         Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'superseded'"));
-        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND old_version = '2.4.1' AND version = '2.4.2'"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND old_version = '2.0' AND version = '2.4.2'")); // the whole change
 
         s.Discord!.FailDmsTo.Clear();
         s.Clock.Advance(TimeSpan.FromMinutes(3));
@@ -285,6 +285,73 @@ public class TableUpdateFlowTests
         await publisher.RunOnceAsync(default);
         Assert.Single(In(s, "dm-555"));
         Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'asked' AND owner_user_id = '555'"));
+    }
+
+    [Fact]
+    public async Task A_sure_match_hides_the_dropdowns_until_wrong_match_is_pressed()
+    {
+        var (s, cab) = await SetupAsync(vps: new FakeVpsSource { Database = VpsSample.Big(1200).TrimEnd(']') + "," + VpsSample.Json.Trim().TrimStart('[') });
+        await using var _ = s;
+        await s.Service<PinBot.Server.Vps.VpsCatalog>().RefreshAsync(default);
+        // TF2 is the only Transformers 1.1 by UnclePaulie (the sample's 24 is repeated to fill the catalog, so it can't be sure)
+        await ReportAsync(cab, File24("2.0"), new TableFile("Transformers", "tf_180", "Transformers (Stern 2011)", "1.1", "UnclePaulie, HauntFreaks", null));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await s.Service<TableUpdatePublisher>().RunOnceAsync(default);
+        var (dmId, dm) = Assert.Single(In(s, "dm-" + Owner));
+        Assert.Contains("VPS `TF2`", dm["content"]!.GetValue<string>());
+        Assert.DoesNotContain("choose the right one", dm["content"]!.GetValue<string>());
+        var rows = dm["components"]!.AsArray();
+        Assert.Single(rows); // buttons only
+        Assert.Contains("Wrong match?", rows.ToJsonString());
+
+        var r = await SendAsync(s, DmPress(TableUpdatePublisher.ShowPicks, dmId));
+        var redrawn = (await r.Content.ReadFromJsonAsync<JsonObject>())!["data"]!;
+        Assert.Contains("choose the right one", redrawn["content"]!.GetValue<string>());
+        Assert.Equal(2, redrawn["components"]!.AsArray().Count); // buttons, table (no backglass on the VPin)
+        Assert.DoesNotContain("Wrong match?", redrawn["components"]!.ToJsonString());
+    }
+
+    [Fact]
+    public async Task A_table_read_while_being_copied_is_still_announced_as_new()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        await ReportAsync(cab); // 24 deleted
+        await ReportAsync(cab, File24("2.4.1") with { Version = null, Name = null, Authors = null }); // read halfway through copying
+        await ReportAsync(cab, File24("2.4.1"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'added' AND old_version IS NULL AND version = '2.4.1'"));
+
+        await ReportAsync(cab, File24("2.5")); // updated again before being asked: still new
+        await ReportAsync(cab, File24("2.6"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'added' AND version = '2.6'"));
+    }
+
+    [Fact]
+    public async Task A_backglass_copied_after_the_table_is_in_the_post()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        await AskAsync(s, Command("updates", [Opt("share", "always")], userId: Owner));
+        var noB2s = File24("2.4.1") with { BackglassName = null, BackglassAuthor = null, BackglassDmdType = null };
+        await ReportAsync(cab, noB2s);
+        await ReportAsync(cab, File24("2.4.1")); // the .directb2s arrives a moment later: same version, no new update
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update"));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await s.Service<TableUpdatePublisher>().RunOnceAsync(default);
+        var setup = Assert.Single(In(s, "chanU")).Message["embeds"]![0]!["fields"]![0]!["value"]!.GetValue<string>();
+        Assert.Contains("Backglass by HauntFreaks", setup);
+    }
+
+    [Fact]
+    public async Task Two_updates_before_answering_show_the_whole_change()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        await ReportAsync(cab, File24("2.4.1"));
+        await ReportAsync(cab, File24("2.4.2"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'updated' AND old_version = '2.0' AND version = '2.4.2'"));
+        await ReportAsync(cab, File24("2.0")); // back to what it was: an update from 2.4.2, not "2.0 -> 2.0"
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND old_version = '2.4.2' AND version = '2.0'"));
     }
 
     [Fact]

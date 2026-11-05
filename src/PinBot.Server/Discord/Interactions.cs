@@ -123,6 +123,10 @@ public static class Interactions
                     ? Json(new JsonObject { ["type"] = 7, ["data"] = redrawn })
                     : Update("This question was already answered or is too old.");
             }
+            if (tu == TableUpdatePublisher.ShowPicks)
+                return await TableUpdatePublisher.ShowPicksAsync(c, clicker, messageId, vps.Current) is { } withPicks
+                    ? Json(new JsonObject { ["type"] = 7, ["data"] = withPicks })
+                    : Update("This question was already answered or is too old.");
             var answer = await TableUpdatePublisher.AnswerAsync(c, tu, clicker, messageId, now);
             if (answer is null) return Update("This question was already answered or is too old.");
             tableUpdates.Wake();
