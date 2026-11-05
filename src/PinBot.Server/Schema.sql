@@ -280,3 +280,10 @@ CREATE TABLE IF NOT EXISTS table_vps_choice (
     chosen_at_utc timestamptz NOT NULL,
     PRIMARY KEY (cabinet_id, table_name, version)
 );
+
+-- v20: a table removed from the cabinet before its member answered withdraws the question ('removed'); a question that
+-- can no longer be answered (removed, superseded, expired) has its DM edited once to say so, without buttons.
+ALTER TABLE table_update DROP CONSTRAINT IF EXISTS table_update_state_check;
+ALTER TABLE table_update ADD CONSTRAINT table_update_state_check
+    CHECK (state IN ('pending', 'asked', 'approved', 'shared', 'skipped', 'superseded', 'removed', 'expired', 'undeliverable'));
+ALTER TABLE table_update ADD COLUMN IF NOT EXISTS dm_closed_at_utc timestamptz;

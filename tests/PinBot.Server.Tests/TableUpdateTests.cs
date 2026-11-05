@@ -288,6 +288,62 @@ public class TableUpdateFlowTests
     }
 
     [Fact]
+    public async Task Removing_the_table_before_answering_withdraws_the_question_and_closes_the_dm()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        var publisher = s.Service<TableUpdatePublisher>();
+        var other = new TableFile("Old EM", null, "Old EM", "1.0", "someone", null);
+        await ReportAsync(cab, File24("2.4.1"), other);
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        var (dmId, _) = Assert.Single(In(s, "dm-" + Owner));
+
+        await ReportAsync(cab, other); // 24 deleted: Old EM's question is still open, so the DM stays
+        await publisher.RunOnceAsync(default);
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'removed'"));
+        Assert.Empty(s.Discord!.Edits);
+
+        await ReportAsync(cab); // Old EM deleted too: nothing left to answer
+        await publisher.RunOnceAsync(default);
+        await publisher.RunOnceAsync(default);
+        Assert.Equal([dmId], s.Discord.Edits); // edited once
+        var closed = s.Discord.Messages[dmId].Message;
+        Assert.Contains("(no longer on the VPin)", closed["content"]!.GetValue<string>());
+        Assert.Empty(closed["components"]!.AsArray());
+        Assert.Contains("already answered", await PressAsync(s, DmPress(TableUpdatePublisher.Share, dmId)));
+        Assert.Contains("removed from the VPin before you answered", (await AskAsync(s, Command("updates", userId: Owner)))["content"]!.GetValue<string>());
+        await publisher.RunOnceAsync(default);
+        Assert.Empty(In(s, "chanU"));
+    }
+
+    [Fact]
+    public async Task A_newer_change_closes_the_old_dm_and_asks_again_and_answered_dms_are_left_alone()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        var publisher = s.Service<TableUpdatePublisher>();
+        await ReportAsync(cab, File24("2.4.1"));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        var (oldDm, _) = Assert.Single(In(s, "dm-" + Owner));
+
+        await ReportAsync(cab); // deleted, then put back: a new table
+        await ReportAsync(cab, File24("2.4.1"));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        Assert.Equal([oldDm], s.Discord!.Edits);
+        Assert.Contains("(no longer on the VPin)", s.Discord.Messages[oldDm].Message["content"]!.GetValue<string>());
+        var newDm = Assert.Single(In(s, "dm-" + Owner), m => m.Id != oldDm).Id;
+        Assert.Contains("**24 (Stern 2009)**: new", s.Discord.Messages[newDm].Message["content"]!.GetValue<string>());
+
+        await PressAsync(s, DmPress(TableUpdatePublisher.Skip, newDm));
+        await ReportAsync(cab); // deleted after answering: the answer stands
+        await publisher.RunOnceAsync(default);
+        Assert.Equal([oldDm], s.Discord.Edits);
+    }
+
+    [Fact]
     public async Task Updates_command_lists_what_happened_to_recent_changes()
     {
         var (s, cab) = await SetupAsync();

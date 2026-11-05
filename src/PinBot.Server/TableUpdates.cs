@@ -19,8 +19,11 @@ public static class TableUpdates
             $"{File.Name ?? File.Table} {(Kind == "added" ? $"added ({File.Version ?? "no version"})" : $"{OldVersion} -> {File.Version}")}";
     }
 
-    /// <summary>What one report contained: how many files, whether it was the cabinet's first (silent), and what changed.</summary>
-    public sealed record Recorded(int Files, bool Baseline, IReadOnlyList<Change> Changes);
+    /// <summary>
+    /// What one report contained: how many files, whether it was the cabinet's first (silent), what changed, and how many
+    /// open questions were withdrawn because their table is no longer on the cabinet.
+    /// </summary>
+    public sealed record Recorded(int Files, bool Baseline, IReadOnlyList<Change> Changes, int Withdrawn = 0);
 
     /// <summary>
     /// Compares a cabinet's new list of table files with its previous one. A file that is gone and another that
@@ -99,6 +102,18 @@ public static class TableUpdates
             """, files.Select(f => Params(cabinet, f)), tx);
         await conn.ExecuteAsync("UPDATE cabinet SET files_reported_at_utc = @now WHERE id = @cabinet", new { cabinet, now }, tx);
 
+        // a table taken off the cabinet before its member answered: nothing to share any more (a file renamed for the
+        // same game keeps its question)
+        var open = await conn.QueryAsync<(long Id, string TableName, string? RomId, string? Name)>("""
+            SELECT id, table_name, rom_id, name FROM table_update
+            WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked', 'undeliverable')
+            """, new { cabinet }, tx);
+        var gone = open.Where(o => !files.Any(f => string.Equals(f.Table, o.TableName, StringComparison.OrdinalIgnoreCase)
+                                                   || SameGame(new TableFile(o.TableName, o.RomId, o.Name, null, null, null), f)))
+            .Select(o => o.Id).ToArray();
+        if (gone.Length > 0)
+            await conn.ExecuteAsync("UPDATE table_update SET state = 'removed', decided_at_utc = @now WHERE id = ANY(@gone)", new { now, gone }, tx);
+
         foreach (var c in changes)
         {
             await conn.ExecuteAsync("""
@@ -117,7 +132,7 @@ public static class TableUpdates
                 FROM cabinet WHERE id = @cabinet
                 """, p, tx);
         }
-        return new(files.Count, baseline, changes);
+        return new(files.Count, baseline, changes, gone.Length);
     }
 
     static DynamicParameters Params(string cabinet, TableFile f)

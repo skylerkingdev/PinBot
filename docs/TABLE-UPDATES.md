@@ -52,6 +52,9 @@ One Discord embed per table:
   is never needed for anything to work. See [If VPS is unavailable](#if-vps-is-unavailable).
 - **Only real changes are announced.** A re-save, a settings or POV tweak, or the first inventory after pairing posts
   nothing.
+- **A question never outlives its table.** If the table is removed from the VPin, or changed again, before the member
+  answers, the question is withdrawn. Once nothing in the DM is left to answer, PinBot edits it to say why and
+  removes the buttons. A newer change gets its own DM.
 
 ## How it fits together
 

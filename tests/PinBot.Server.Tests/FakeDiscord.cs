@@ -16,7 +16,7 @@ public sealed class FakeDiscord : IDiscordApi
     public bool RefuseMembers { get; set; }
     int _next = 1000;
 
-    /// <summary>Direct messages, by recipient (channel "dm-    public Task<string> PostMessageAsync(string channelId, JsonObject message, CancellationToken ct = default)lt;user id    public Task<string> PostMessageAsync(string channelId, JsonObject message, CancellationToken ct = default)gt;").</summary>
+    /// <summary>Direct messages, by recipient (channel "dm-&lt;user id&gt;").</summary>
     public List<string> DirectMessages(string userId) =>
         Messages.Values.Where(m => m.Channel == "dm-" + userId).Select(m => m.Message["content"]!.GetValue<string>()).ToList();
 

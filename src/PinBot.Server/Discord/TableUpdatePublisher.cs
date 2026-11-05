@@ -48,6 +48,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             UPDATE table_update SET state = 'expired', decided_at_utc = @now
             WHERE state IN ('pending', 'asked') AND detected_at_utc < @old
             """, new { now, old = now - AnswerWithin });
+        await CloseQuestionsAsync(conn, now, ct);
         if (await Settings.GetAsync(conn, Settings.UpdatesChannel) is not { } channel) return; // the feature is off
 
         foreach (var u in await conn.QueryAsync<TableUpdateRow>($"SELECT {Columns} FROM table_update u WHERE u.state = 'approved' ORDER BY u.id"))
@@ -146,6 +147,66 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         }
     }
 
+    /// <summary>
+    /// DMs whose question can no longer be answered (every table in it removed from the VPin, changed again, or not
+    /// answered in time): edited once to say so, without buttons, so nobody shares a setup that isn't there.
+    /// </summary>
+    async Task CloseQuestionsAsync(NpgsqlConnection conn, DateTime now, CancellationToken ct)
+    {
+        var messages = (await conn.QueryAsync<(string Channel, string Message)>("""
+            SELECT u.dm_channel_id, u.dm_message_id FROM table_update u
+            WHERE u.dm_message_id IS NOT NULL AND u.dm_channel_id IS NOT NULL AND u.dm_closed_at_utc IS NULL
+              AND u.state IN ('superseded', 'removed', 'expired')
+              AND NOT EXISTS (SELECT 1 FROM table_update o
+                              WHERE o.dm_message_id = u.dm_message_id AND o.state NOT IN ('superseded', 'removed', 'expired'))
+            GROUP BY u.dm_channel_id, u.dm_message_id
+            """)).ToList();
+        foreach (var (dm, message) in messages)
+        {
+            var rows = (await conn.QueryAsync<TableUpdateRow>($"SELECT {Columns} FROM table_update u WHERE u.dm_message_id = @message ORDER BY u.id",
+                new { message })).ToList();
+            var cabinet = await conn.ExecuteScalarAsync<string?>("SELECT name FROM cabinet WHERE id = @id", new { id = rows[0].CabinetId }) ?? "your VPin";
+            try
+            {
+                await api.EditMessageAsync(dm, message, Closed(cabinet, rows), ct);
+            }
+            catch (DiscordRestException ex) when (ex.Status is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
+            {
+                // the member deleted it or closed their DMs: nothing left to edit
+            }
+            catch (Exception ex) when (ex is DiscordRestException or HttpRequestException or TaskCanceledException)
+            {
+                log.LogWarning("table-update question not closed: {Message}", ex.Message);
+                return; // next pass
+            }
+            await conn.ExecuteAsync("UPDATE table_update SET dm_closed_at_utc = @now WHERE dm_message_id = @message", new { now, message });
+        }
+    }
+
+    /// <summary>The question, closed: what became of each table, and no buttons.</summary>
+    public static JsonObject Closed(string cabinet, IReadOnlyList<TableUpdateRow> rows)
+    {
+        var sb = new StringBuilder($"🔄 PinBot noticed {(rows.Count == 1 ? "a table change" : $"{rows.Count} table changes")} on **{Interactions.Md(cabinet)}**:\n");
+        foreach (var u in rows.Take(MaxPerQuestion))
+            sb.Append($"• ~~**{Title(u)}**: {(u.Kind == "added" ? "new" : "updated")}{(Change(u) is { Length: > 0 } c ? $", {c}" : "")}~~ {ClosedText(u.State)}\n");
+        if (rows.Count > MaxPerQuestion) sb.Append($"• …and {rows.Count - MaxPerQuestion} more\n");
+        sb.Append("Nothing was shared, and this question is closed.");
+        return new JsonObject
+        {
+            ["content"] = sb.ToString(),
+            ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() },
+            ["components"] = new JsonArray(),
+        };
+    }
+
+    static string ClosedText(string state) => state switch
+    {
+        "removed" => "(no longer on the VPin)",
+        "superseded" => "(changed again: see the newer message)",
+        "expired" => "(not answered within 7 days)",
+        _ => "",
+    };
+
     static Task SetStateAsync(NpgsqlConnection conn, long[] ids, string state, DateTime now) =>
         conn.ExecuteAsync("UPDATE table_update SET state = @state, decided_at_utc = @now WHERE id = ANY(@ids) AND state IN ('pending', 'asked')",
             new { state, now, ids });
@@ -161,6 +222,8 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             SELECT id FROM table_update WHERE dm_message_id = @messageId AND owner_user_id = @userId AND state = 'asked'
             """, new { messageId, userId })).ToArray();
         if (ids.Length == 0) return null;
+        // the answer redraws the message: never edited again when its other tables are closed later
+        await conn.ExecuteAsync("UPDATE table_update SET dm_closed_at_utc = @now WHERE dm_message_id = @messageId", new { now, messageId });
         var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel);
         var where = channel is null ? "the updates channel" : $"<#{channel}>";
         switch (customId)
@@ -224,6 +287,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         "shared" => "shared",
         "skipped" => "not shared",
         "superseded" => "replaced by a newer change",
+        "removed" => "removed from the VPin before you answered",
         "expired" => "not answered within 7 days",
         "undeliverable" => "PinBot couldn't DM you (Discord: allow direct messages from this server's members)",
         _ => state,
