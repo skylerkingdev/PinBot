@@ -696,9 +696,12 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         var embed = new JsonObject
         {
             ["title"] = Trim(m?.Game.Title ?? u.Name ?? u.TableName, 256),
+            // the code block after the explanation (a message's text would show above the embed); ≤ 1900 + ~700 of 4096
             ["description"] = Trim($"{who} shared a **{mode}** POV for this table\n{table}\n" +
-                                   $"To use it on a VPin in {mode} mode: paste the lines below into the table's `.ini` " +
-                                   "(next to the `.vpx`, same name) under `[TableOverride]`, replacing the lines with the same names.", 4000),
+                                   $"To use it on a VPin in {mode} mode: in the table's `.ini` (next to the `.vpx`, same name), under " +
+                                   $"`[TableOverride]`, delete any `{Prefix(u.PovMode)}…` lines, then paste these. VPX saves only what " +
+                                   "differs from the table's own view, so leftover lines would change it.", 2000) +
+                               "\n" + PovBlock(u.Pov),
             ["color"] = 0x3498DB,
         };
         if (m is not null)
@@ -708,11 +711,12 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         }
         return new JsonObject
         {
-            ["content"] = PovBlock(u.Pov),
             ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() }, // shows the member's name, never pings
             ["embeds"] = new JsonArray(embed),
         };
     }
+
+    static string Prefix(string? mode) => mode switch { "cabinet" => "ViewCab", "fss" => "ViewFSS", _ => "ViewDT" };
 
     /// <summary>The view settings as an ini code block that fits a Discord message: whole lines only, never a cut-off block.</summary>
     static string PovBlock(string? pov)

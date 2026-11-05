@@ -245,7 +245,7 @@ forum, one thread per game (see [Channels](#channels)).
 ### POVs, phase A: sharing, the same way as table updates (built)
 
 A POV is shared exactly like a table update: the VPin notices it, the member is asked in a DM, and only what they share
-is posted. Status: built, not yet tested on a real VPin; the VPX setting names below need checking against real files.
+is posted. Status: built, and tested on a real VPin (2026-11-04: X-Files, cabinet mode, VPX 10.8).
 
 - **What a POV is here:** VPX 10.8 keeps a table's view in the table's own `.ini` (next to the `.vpx`), section
   `[TableOverride]`, one set of `View…` keys per view mode: desktop (`ViewDT…`), cabinet (`ViewCab…`) and full single
@@ -264,7 +264,15 @@ is posted. Status: built, not yet tested on a real VPin; the VPX setting names b
   table", with the table version and its VPS entry (as in update posts), and the view keys as a code block to paste
   under `[TableOverride]` in the table's `.ini`. The `[Player]` section (screen size, player position: this VPin's own
   setup) is never sent.
-- **Not yet:** the sharer's screen size and orientation in the post, and a legacy `.pov` file next to a table.
+- **Found in testing:** VPX saves only the view settings that differ from the table's own view. X-Files' cabinet POV
+  was 9 keys (`ViewCabHOfs`, `ViewCabMode`, `ViewCabRotation`, `ViewCabScaleX/Y/Z`, `ViewCabVOfs`,
+  `ViewCabWindowBot`, `ViewCabWindowTop`), no FOV or player position. So a shared POV is a set of changes on top of
+  the table's built-in view, which is why it's only meant for the same table version. The post tells members to
+  delete their own `ViewCab…` lines before pasting, or leftovers mix in.
+- **`ViewCabMode = 2` is VPX's window mode,** whose `WindowTop`/`WindowBot` describe the physical playfield screen:
+  the settings most likely to look wrong on a cabinet of another size.
+- **Not yet:** the sharer's screen size and orientation in the post (more useful than first thought, see above), and
+  a legacy `.pov` file next to a table.
 
 ### POVs, phase B: installing a shared POV (design)
 
@@ -277,6 +285,9 @@ is posted. Status: built, not yet tested on a real VPin; the VPX setting names b
 - Safeguards on the cab:
   - apply only when no table is running
   - back up the existing file first, with undo via `/pinbot updates undo table:<name>` or the agent console
+  - replace the mode's whole set of `View…` keys: remove the member's other keys for that mode, then write the shared
+    ones (a shared POV holds only what differed from the table's view, see phase A)
+  - for a window-mode cabinet POV, compare the sharer's playfield screen with the member's and say so when they differ
   - accept only a well-formed `.pov` (XML) or `.ini`; anything else is refused
 - **Competitions:** VPX 10.8 table `.ini` files can carry table options, which on some tables set difficulty or ball
   count. Settings sync skips those keys, or holds the whole file while a competition on that game is running.

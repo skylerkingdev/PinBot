@@ -417,8 +417,11 @@ public class TableUpdateFlowTests
         Assert.Equal(1, await s.CountAsync($"SELECT count(*) FROM member_pref WHERE discord_user_id = '{Owner}' AND share_povs = 'always' AND share_updates = 'ask'"));
         await publisher.RunOnceAsync(default);
         var post = Assert.Single(In(s, "chanS")).Message;
-        Assert.Equal("```ini\n[TableOverride]\nViewCabFOV = 45\nViewCabMode = 2\n```", post["content"]!.GetValue<string>());
-        Assert.Contains($"<@{Owner}> shared a **cabinet** POV for this table", post["embeds"]![0]!["description"]!.GetValue<string>());
+        var description = post["embeds"]![0]!["description"]!.GetValue<string>();
+        Assert.Null(post["content"]); // the code block is in the embed, after the explanation
+        Assert.StartsWith($"<@{Owner}> shared a **cabinet** POV for this table", description);
+        Assert.Contains("delete any `ViewCab…` lines", description);
+        Assert.EndsWith("\n```ini\n[TableOverride]\nViewCabFOV = 45\nViewCabMode = 2\n```", description);
         Assert.Empty(In(s, "chanU"));
 
         var settings = (await AskAsync(s, Command("updates", userId: Owner)))["content"]!.GetValue<string>();
