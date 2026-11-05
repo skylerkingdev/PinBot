@@ -9,7 +9,7 @@ namespace PinBot.Server.Discord;
 public sealed record TableUpdateRow(long Id, string CabinetId, string TableName, string Kind, string? OldVersion, string? RomId,
     string? Name, string? Version, string? Authors, string? BackglassName, string? BackglassAuthor, int? BackglassDmd,
     bool AltColor, bool AltSound, DateTime DetectedAtUtc, string State, string? OwnerUserId, string? DmChannelId, string? DmMessageId,
-    string? VpsTableId = null, string? VpsB2sId = null);
+    string? VpsTableId = null, string? VpsB2sId = null, string? PostChannelId = null, string? PostMessageId = null);
 
 /// <summary>
 /// Table updates (docs/TABLE-UPDATES.md): asks the member who paired the cabinet whether to share each new table or
@@ -30,6 +30,14 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
     public const string PickTable = "tu:pick:table", PickBackglass = "tu:pick:b2s", NotOnVps = "none";
     /// <summary>"Wrong match?" on a question PinBot is sure about: shows the dropdowns.</summary>
     public const string ShowPicks = "tu:fix";
+    /// <summary>On a question about several tables: which table the dropdowns are for.</summary>
+    public const string Which = "tu:which";
+    /// <summary>/pinbot updates: the member's shared posts (pick one to fix its VPS links), then its dropdowns.</summary>
+    public const string FixPost = "tu:fixpost", FixPick = "tu:fixpick";
+
+    /// <summary>A question's dropdown: "tu:pick:table:&lt;update id&gt;" (or, on questions sent before ids, "tu:pick:table").</summary>
+    public static bool IsPick(string customId) =>
+        customId == PickTable || customId == PickBackglass || customId.StartsWith(PickTable + ":") || customId.StartsWith(PickBackglass + ":");
     const int MaxOptions = 25; // Discord's limit for a dropdown
 
     readonly SemaphoreSlim _wake = new(0);
@@ -39,7 +47,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
     const string Columns = """
         u.id, u.cabinet_id, u.table_name, u.kind, u.old_version, u.rom_id, u.name, u.version, u.authors, u.backglass_name,
         u.backglass_author, u.backglass_dmd, u.alt_color, u.alt_sound, u.detected_at_utc, u.state, u.owner_user_id,
-        u.dm_channel_id, u.dm_message_id, u.vps_table_id, u.vps_b2s_id
+        u.dm_channel_id, u.dm_message_id, u.vps_table_id, u.vps_b2s_id, u.post_channel_id, u.post_message_id
         """;
 
     public async Task RunOnceAsync(CancellationToken ct)
@@ -296,44 +304,173 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
     };
 
     /// <summary>
-    /// A pick from a dropdown on a one-table question: the VPS entry the member says it is (or "not on VPS"). Only the
-    /// member it was sent to, only entries of the game PinBot found, and only while the question is open. Remembered for
-    /// this file and version. Returns the redrawn question, or null when there is nothing to change.
+    /// A pick from a question's dropdown: the VPS entry the member says a table is (or "not on VPS"). Only the member it
+    /// was sent to, only entries of the game PinBot found, and only while the question is open. Remembered for this file
+    /// and version. Returns the redrawn question, or null when there is nothing to change.
     /// </summary>
     public static async Task<JsonObject?> PickAsync(NpgsqlConnection conn, string customId, string? value, string userId, string messageId,
         Vps.VpsIndex? index, DateTime now)
     {
-        var rows = (await conn.QueryAsync<TableUpdateRow>($"""
-            SELECT {Columns} FROM table_update u WHERE u.dm_message_id = @messageId AND u.owner_user_id = @userId AND u.state = 'asked'
-            """, new { messageId, userId })).ToList();
-        if (rows is not [var u] || value is null || Match(index, u) is not { } auto) return null;
-        var options = customId == PickTable ? auto.Game.Tables : customId == PickBackglass ? auto.Game.Backglasses : null;
-        if (options is null || (value != NotOnVps && options.All(o => o.Id != value))) return null;
-        var chosen = value == NotOnVps ? "" : value;
-        var column = customId == PickTable ? "vps_table_id" : "vps_b2s_id";
-        await conn.ExecuteAsync($"UPDATE table_update SET {column} = @chosen WHERE id = @Id", new { chosen, u.Id });
-        await conn.ExecuteAsync($"""
-            INSERT INTO table_vps_choice (cabinet_id, table_name, version, {(customId == PickTable ? "table_id" : "b2s_id")}, chosen_at_utc)
-            VALUES (@CabinetId, @TableName, @version, @chosen, @now)
-            ON CONFLICT (cabinet_id, table_name, version) DO UPDATE SET {(customId == PickTable ? "table_id" : "b2s_id")} = EXCLUDED.{(customId == PickTable ? "table_id" : "b2s_id")},
-                chosen_at_utc = EXCLUDED.chosen_at_utc
-            """, new { u.CabinetId, u.TableName, version = u.Version ?? "", chosen, now });
-        var cabinet = await conn.ExecuteScalarAsync<string?>("SELECT name FROM cabinet WHERE id = @CabinetId", new { u.CabinetId }) ?? "your VPin";
-        var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel) ?? "0";
-        var updated = customId == PickTable ? u with { VpsTableId = chosen } : u with { VpsB2sId = chosen };
-        return Question(cabinet, channel, [updated], index, showPicks: true);
+        var rows = await OpenQuestionAsync(conn, userId, messageId);
+        var isTable = customId.StartsWith(PickTable);
+        var id = customId.Split(':') is [_, _, _, var n] && long.TryParse(n, out var parsed) ? parsed : (long?)null;
+        var u = id is { } want ? rows.FirstOrDefault(r => r.Id == want) : rows is [var only] ? only : null;
+        if (u is null || value is null || Match(index, u) is not { } auto) return null;
+        if (Chosen(auto, isTable, value) is not { } chosen) return null;
+        await conn.ExecuteAsync($"UPDATE table_update SET {(isTable ? "vps_table_id" : "vps_b2s_id")} = @chosen WHERE id = @Id", new { chosen, u.Id });
+        await SaveChoiceAsync(conn, u, isTable, chosen, now);
+        var updated = isTable ? u with { VpsTableId = chosen } : u with { VpsB2sId = chosen };
+        var (cabinet, channel) = await WhereAsync(conn, u);
+        return Question(cabinet, channel, rows.Select(r => r.Id == u.Id ? updated : r).ToList(), index, showPicks: true, focus: u.Id);
     }
 
-    /// <summary>"Wrong match?": the same open one-table question, with its dropdowns. Null when it is no longer open.</summary>
+    /// <summary>"Wrong match?": the same open question, with its dropdowns. Null when it is no longer open.</summary>
     public static async Task<JsonObject?> ShowPicksAsync(NpgsqlConnection conn, string userId, string messageId, Vps.VpsIndex? index)
     {
-        var rows = (await conn.QueryAsync<TableUpdateRow>($"""
+        var rows = await OpenQuestionAsync(conn, userId, messageId);
+        if (rows.Count == 0 || index is null) return null;
+        var (cabinet, channel) = await WhereAsync(conn, rows[0]);
+        return Question(cabinet, channel, rows, index, showPicks: true, focus: rows[0].Id);
+    }
+
+    /// <summary>"Which table?" on a question about several: the same question with that table's dropdowns.</summary>
+    public static async Task<JsonObject?> WhichAsync(NpgsqlConnection conn, string? value, string userId, string messageId, Vps.VpsIndex? index)
+    {
+        var rows = await OpenQuestionAsync(conn, userId, messageId);
+        if (index is null || !long.TryParse(value, out var id) || rows.All(r => r.Id != id)) return null;
+        var (cabinet, channel) = await WhereAsync(conn, rows[0]);
+        return Question(cabinet, channel, rows, index, showPicks: true, focus: id);
+    }
+
+    static async Task<List<TableUpdateRow>> OpenQuestionAsync(NpgsqlConnection conn, string userId, string messageId) =>
+        (await conn.QueryAsync<TableUpdateRow>($"""
             SELECT {Columns} FROM table_update u WHERE u.dm_message_id = @messageId AND u.owner_user_id = @userId AND u.state = 'asked'
+            ORDER BY u.id
             """, new { messageId, userId })).ToList();
-        if (rows is not [var u] || index is null) return null;
-        var cabinet = await conn.ExecuteScalarAsync<string?>("SELECT name FROM cabinet WHERE id = @CabinetId", new { u.CabinetId }) ?? "your VPin";
-        var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel) ?? "0";
-        return Question(cabinet, channel, [u], index, showPicks: true);
+
+    static async Task<(string Cabinet, string Channel)> WhereAsync(NpgsqlConnection conn, TableUpdateRow u) =>
+        (await conn.ExecuteScalarAsync<string?>("SELECT name FROM cabinet WHERE id = @CabinetId", new { u.CabinetId }) ?? "your VPin",
+         await Settings.GetAsync(conn, Settings.UpdatesChannel) ?? "0");
+
+    /// <summary>The picked value if it is an entry of the matched game (or "not on VPS", stored as ""); null if not.</summary>
+    static string? Chosen(Vps.VpsMatch auto, bool isTable, string value)
+    {
+        var options = isTable ? auto.Game.Tables : auto.Game.Backglasses;
+        if (value == NotOnVps) return "";
+        return options.Any(o => o.Id == value) ? value : null;
+    }
+
+    /// <summary>Remembered for this file and version: the same file is never asked about again.</summary>
+    static Task SaveChoiceAsync(NpgsqlConnection conn, TableUpdateRow u, bool isTable, string chosen, DateTime now)
+    {
+        var column = isTable ? "table_id" : "b2s_id";
+        return conn.ExecuteAsync($"""
+            INSERT INTO table_vps_choice (cabinet_id, table_name, version, {column}, chosen_at_utc)
+            VALUES (@CabinetId, @TableName, @version, @chosen, @now)
+            ON CONFLICT (cabinet_id, table_name, version) DO UPDATE SET {column} = EXCLUDED.{column}, chosen_at_utc = EXCLUDED.chosen_at_utc
+            """, new { u.CabinetId, u.TableName, version = u.Version ?? "", chosen, now });
+    }
+
+    // ---------------- fixing a shared post ----------------
+
+    const int MaxFixable = 25;
+
+    /// <summary>For /pinbot updates: a dropdown of the member's shared posts, to fix one's VPS links. Null when there are none.</summary>
+    public static async Task<JsonObject?> FixMenuAsync(NpgsqlConnection conn, string userId)
+    {
+        var posts = (await conn.QueryAsync<TableUpdateRow>($"""
+            SELECT {Columns} FROM table_update u
+            WHERE u.owner_user_id = @userId AND u.state = 'shared' AND u.post_message_id IS NOT NULL
+            ORDER BY u.id DESC LIMIT {MaxFixable}
+            """, new { userId })).ToList();
+        if (posts.Count == 0) return null;
+        var options = new JsonArray();
+        foreach (var u in posts)
+            options.Add(new JsonObject
+            {
+                ["label"] = Trim($"{u.Name ?? u.TableName}{(u.Version is { } v ? $" · v{v}" : "")}", 100),
+                ["description"] = $"shared {DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc):d MMM yyyy}",
+                ["value"] = u.Id.ToString(),
+            });
+        return new JsonObject
+        {
+            ["type"] = 1,
+            ["components"] = new JsonArray(new JsonObject
+            {
+                ["type"] = 3, ["custom_id"] = FixPost, ["placeholder"] = "Fix the VPS links of a post you shared…", ["options"] = options,
+            }),
+        };
+    }
+
+    static async Task<TableUpdateRow?> SharedPostAsync(NpgsqlConnection conn, long id, string userId) =>
+        await conn.QuerySingleOrDefaultAsync<TableUpdateRow>($"""
+            SELECT {Columns} FROM table_update u
+            WHERE u.id = @id AND u.owner_user_id = @userId AND u.state = 'shared' AND u.post_message_id IS NOT NULL
+            """, new { id, userId });
+
+    /// <summary>A post picked from the /pinbot updates menu: its VPS entries, with dropdowns. Null if it isn't the member's.</summary>
+    public static async Task<JsonObject?> FixPostAsync(NpgsqlConnection conn, string? value, string userId, Vps.VpsIndex? index) =>
+        long.TryParse(value, out var id) && await SharedPostAsync(conn, id, userId) is { } u ? Editor(u, index, null) : null;
+
+    /// <summary>
+    /// A pick on the fix editor: saved like a pick on the question, and the post in the updates channel is edited to link
+    /// the right entries. Returns the redrawn editor, or null when the post isn't the member's or the pick isn't valid.
+    /// </summary>
+    public async Task<JsonObject?> FixPickAsync(NpgsqlConnection conn, string customId, string? value, string userId, DateTime now, CancellationToken ct)
+    {
+        if (customId.Split(':') is not [_, _, var kind and ("table" or "b2s"), var n] || !long.TryParse(n, out var id)) return null;
+        var index = vps?.Current;
+        if (value is null || await SharedPostAsync(conn, id, userId) is not { } u || Match(index, u) is not { } auto) return null;
+        var isTable = kind == "table";
+        if (Chosen(auto, isTable, value) is not { } chosen) return null;
+        await SaveChoiceAsync(conn, u, isTable, chosen, now);
+        u = isTable ? u with { VpsTableId = chosen } : u with { VpsB2sId = chosen };
+        var m = Resolve(index, u);
+        await conn.ExecuteAsync("""
+            UPDATE table_update SET vps_game_id = @game, vps_table_id = @table, vps_b2s_id = @b2s WHERE id = @Id
+            """, new { u.Id, game = m?.Game.Id, table = isTable ? chosen : m?.Table?.Id, b2s = isTable ? m?.Backglass?.Id : chosen });
+        string note;
+        try
+        {
+            await api.EditMessageAsync(u.PostChannelId!, u.PostMessageId!, Post(u, m), ct);
+            note = "✅ Post updated. ";
+            log.LogInformation("member {Owner} fixed the VPS links of table update {Id}", userId, u.Id);
+        }
+        catch (DiscordRestException ex) when (ex.Status is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
+        {
+            note = "⚠️ Saved, but PinBot couldn't edit the post (it was deleted, or PinBot can no longer post there). ";
+        }
+        catch (Exception ex) when (ex is DiscordRestException or HttpRequestException or TaskCanceledException)
+        {
+            note = "⚠️ Saved, but Discord didn't take the edit just now: pick it again in a minute. ";
+        }
+        return Editor(u, index, note);
+    }
+
+    /// <summary>The fix editor: what the post links now, and a dropdown for each part.</summary>
+    static JsonObject Editor(TableUpdateRow u, Vps.VpsIndex? index, string? note)
+    {
+        var sb = new StringBuilder($"{note}Your post of **{Title(u)}**{(Change(u) is { Length: > 0 } c ? $" ({c})" : "")} in <#{u.PostChannelId}>:\n");
+        var rows = new JsonArray();
+        if (Resolve(index, u) is not { } m)
+            sb.Append(index is null
+                ? "PinBot can't reach the Virtual Pinball Spreadsheet right now, so there are no entries to pick. Try again later."
+                : "PinBot couldn't find this game on the Virtual Pinball Spreadsheet, so there are no entries to pick.");
+        else
+        {
+            sb.Append($"↳ Table: {Identified(m.Table, u.VpsTableId)}\n");
+            if (HasB2s(u)) sb.Append($"↳ Backglass: {Identified(m.Backglass, u.VpsB2sId)}\n");
+            sb.Append("Pick the right entries below; the post is updated right away.");
+            if (m.Game.Tables.Count > 0) rows.Add(Dropdown($"{FixPick}:table:{u.Id}", "Which table entry is it?", m.Game.Tables, m.Table?.Id ?? u.VpsTableId));
+            if (HasB2s(u) && m.Game.Backglasses.Count > 0)
+                rows.Add(Dropdown($"{FixPick}:b2s:{u.Id}", "Which backglass is it?", m.Game.Backglasses, m.Backglass?.Id ?? u.VpsB2sId));
+        }
+        return new JsonObject
+        {
+            ["content"] = sb.ToString(),
+            ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() },
+            ["components"] = rows,
+        };
     }
 
     public static Task SetPrefAsync(NpgsqlConnection conn, string userId, string pref) =>
@@ -354,7 +491,9 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
 
     /// <summary>The DM to the member: what PinBot noticed on their VPin, and whether to share it.</summary>
     /// <param name="showPicks">show the dropdowns even when PinBot is sure (the member pressed "Wrong match?", or picked)</param>
-    public static JsonObject Question(string cabinet, string channel, IReadOnlyList<TableUpdateRow> batch, Vps.VpsIndex? index = null, bool showPicks = false)
+    /// <param name="focus">on a question about several tables, the one whose dropdowns are shown</param>
+    public static JsonObject Question(string cabinet, string channel, IReadOnlyList<TableUpdateRow> batch, Vps.VpsIndex? index = null,
+        bool showPicks = false, long? focus = null)
     {
         var sb = new StringBuilder($"🔄 PinBot noticed {(batch.Count == 1 ? "a table change" : $"{batch.Count} table changes")} on **{Interactions.Md(cabinet)}**:\n");
         foreach (var u in batch.Take(MaxPerQuestion))
@@ -363,33 +502,50 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             if (index is null) continue;
             if (Resolve(index, u) is not { } m) { sb.Append("  ↳ not found on VPS: shared without links\n"); continue; }
             sb.Append($"  ↳ Table: {Identified(m.Table, u.VpsTableId)}\n");
-            if (u.BackglassAuthor is not null || u.BackglassName is not null) sb.Append($"  ↳ Backglass: {Identified(m.Backglass, u.VpsB2sId)}\n");
+            if (HasB2s(u)) sb.Append($"  ↳ Backglass: {Identified(m.Backglass, u.VpsB2sId)}\n");
         }
         if (batch.Count > MaxPerQuestion) sb.Append($"• …and {batch.Count - MaxPerQuestion} more\n");
-        var one = batch.Count == 1 && index is not null ? Resolve(index, batch[0]) : null;
-        // sure: the table entry (and the backglass, if there is one) found or chosen; then the dropdowns wait behind a button
-        var hasB2s = one is not null && (batch[0].BackglassAuthor is not null || batch[0].BackglassName is not null);
-        var sure = one is not null && (one.Table is not null || batch[0].VpsTableId == "") && (!hasB2s || one.Backglass is not null || batch[0].VpsB2sId == "");
-        var picks = one is not null && (showPicks || !sure);
-        if (picks) sb.Append("If PinBot picked the wrong entry, choose the right one below. ");
+
+        // the tables PinBot found on VPS (their entries can be picked), and the one whose dropdowns are shown: the one asked
+        // for, else (several tables) the first PinBot isn't sure of, else (one table) only when it isn't sure
+        var found = index is null ? [] : batch.Take(MaxOptions).Select(u => (U: u, M: Resolve(index, u))).Where(x => x.M is not null).ToList();
+        var target = focus is { } f ? found.FirstOrDefault(x => x.U.Id == f) : default;
+        if (target.U is null && found.FirstOrDefault(x => !Sure(x.U, x.M!)) is { U: not null } unsure) target = unsure;
+        if (target.U is null && showPicks && found.Count > 0) target = found[0];
+        var several = batch.Count > 1;
+        if (target.U is not null)
+            sb.Append(several ? $"If PinBot picked the wrong entry for **{Title(target.U)}**, choose the right one below. " : "If PinBot picked the wrong entry, choose the right one below. ");
+        else if (several && found.Count > 0)
+            sb.Append("To check a table's VPS entries, pick it under the buttons. ");
         sb.Append($"Share {(batch.Count == 1 ? "it" : "them")} in <#{channel}> so others can get the same setup?");
 
-        var rows = new JsonArray(new JsonObject
+        var buttons = new JsonArray(
+            Button(batch.Count == 1 ? "Share" : "Share all", Share, 3),
+            Button("Always share", Always, 1),
+            Button("Not this time", Skip, 2),
+            Button("Don't ask again", Never, 2));
+        if (!several && found.Count == 1 && target.U is null) buttons.Add(Button("Wrong match?", ShowPicks, 2));
+        var rows = new JsonArray(new JsonObject { ["type"] = 1, ["components"] = buttons });
+        if (several && found.Count > 0)
         {
-            ["type"] = 1,
-            ["components"] = new JsonArray(
-                Button(batch.Count == 1 ? "Share" : "Share all", Share, 3),
-                Button("Always share", Always, 1),
-                Button("Not this time", Skip, 2),
-                Button("Don't ask again", Never, 2)),
-        });
-        if (one is not null && !picks) rows[0]!["components"]!.AsArray().Add(Button("Wrong match?", ShowPicks, 2));
-        if (one is not null && picks)
+            var options = new JsonArray();
+            foreach (var (u, _) in found)
+            {
+                var o = new JsonObject { ["label"] = Trim($"{u.Name ?? u.TableName}{(u.Version is { } v ? $" · v{v}" : "")}", 100), ["value"] = u.Id.ToString() };
+                if (u.Id == target.U?.Id) o["default"] = true;
+                options.Add(o);
+            }
+            rows.Add(new JsonObject
+            {
+                ["type"] = 1,
+                ["components"] = new JsonArray(new JsonObject { ["type"] = 3, ["custom_id"] = Which, ["placeholder"] = "Check a table's VPS entries…", ["options"] = options }),
+            });
+        }
+        if (target is { U: { } t, M: { } tm })
         {
-            var u = batch[0];
-            if (one.Game.Tables.Count > 0) rows.Add(Dropdown(PickTable, "Which table entry is it?", one.Game.Tables, one.Table?.Id ?? u.VpsTableId));
-            if ((u.BackglassAuthor is not null || u.BackglassName is not null) && one.Game.Backglasses.Count > 0)
-                rows.Add(Dropdown(PickBackglass, "Which backglass is it?", one.Game.Backglasses, one.Backglass?.Id ?? u.VpsB2sId));
+            if (tm.Game.Tables.Count > 0) rows.Add(Dropdown($"{PickTable}:{t.Id}", "Which table entry is it?", tm.Game.Tables, tm.Table?.Id ?? t.VpsTableId));
+            if (HasB2s(t) && tm.Game.Backglasses.Count > 0)
+                rows.Add(Dropdown($"{PickBackglass}:{t.Id}", "Which backglass is it?", tm.Game.Backglasses, tm.Backglass?.Id ?? t.VpsB2sId));
         }
         return new JsonObject
         {
@@ -398,6 +554,12 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             ["components"] = rows,
         };
     }
+
+    static bool HasB2s(TableUpdateRow u) => u.BackglassAuthor is not null || u.BackglassName is not null;
+
+    /// <summary>The table entry (and the backglass, if the VPin has one) found or chosen.</summary>
+    static bool Sure(TableUpdateRow u, Vps.VpsMatch m) =>
+        (m.Table is not null || u.VpsTableId == "") && (!HasB2s(u) || m.Backglass is not null || u.VpsB2sId == "");
 
     /// <summary>"v2.4.1 by RobbyKingPin, 32assassin +12 (VPS `QcOG228URt`)", "not on VPS (your choice)" or "not identified: pick it below".</summary>
     static string Identified(Vps.VpsFile? f, string? chosen) =>

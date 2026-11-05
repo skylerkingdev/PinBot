@@ -33,23 +33,32 @@ public static class TableUpdates
     public static List<Change> Detect(IReadOnlyCollection<TableFile> previous, IReadOnlyCollection<TableFile> now, bool baseline)
     {
         if (baseline) return [];
+        var changes = new List<Change>();
+        foreach (var (f, old) in Pair(previous, now))
+        {
+            if (old is null) changes.Add(new(f, "added", null));
+            else if (NewVersion(old.Version, f.Version)) changes.Add(new(f, "updated", old.Version));
+        }
+        return changes;
+    }
+
+    /// <summary>Each file now, with the file it was before: the same file name, else a file of the same game that is gone (renamed).</summary>
+    static List<(TableFile Now, TableFile? Before)> Pair(IReadOnlyCollection<TableFile> previous, IReadOnlyCollection<TableFile> now)
+    {
         var before = previous.ToDictionary(f => f.Table, StringComparer.OrdinalIgnoreCase);
         var nowNames = now.Select(f => f.Table).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var gone = previous.Where(f => !nowNames.Contains(f.Table)).ToList();
-        var changes = new List<Change>();
+        var pairs = new List<(TableFile, TableFile?)>();
         foreach (var f in now)
         {
-            if (before.TryGetValue(f.Table, out var old))
-            {
-                if (NewVersion(old.Version, f.Version)) changes.Add(new(f, "updated", old.Version));
-                continue;
-            }
-            var renamedFrom = gone.FirstOrDefault(g => SameGame(g, f));
-            if (renamedFrom is null) { changes.Add(new(f, "added", null)); continue; }
-            gone.Remove(renamedFrom);
-            if (NewVersion(renamedFrom.Version, f.Version)) changes.Add(new(f, "updated", renamedFrom.Version));
+            if (before.TryGetValue(f.Table, out var old)) { pairs.Add((f, old)); continue; }
+            // the same table name first, then the same ROM: several tables of one game can share a ROM
+            var renamedFrom = gone.FirstOrDefault(g => g.Name is not null && string.Equals(g.Name, f.Name, StringComparison.OrdinalIgnoreCase) && SameGame(g, f))
+                              ?? gone.FirstOrDefault(g => SameGame(g, f));
+            if (renamedFrom is not null) gone.Remove(renamedFrom);
+            pairs.Add((f, renamedFrom));
         }
-        return changes;
+        return pairs;
     }
 
     /// <summary>A version is new only when the table states one and it differs (a table without a version can't say).</summary>
@@ -92,6 +101,8 @@ public static class TableUpdates
         var previous = (await conn.QueryAsync<FileRow>("SELECT * FROM table_file WHERE cabinet_id = @cabinet", new { cabinet }, tx))
             .Select(r => r.ToFile()).ToList();
         var changes = Detect(previous, files, baseline);
+        var renamed = baseline ? [] : Pair(previous, files)
+            .Where(p => p.Before is { } b && !string.Equals(b.Table, p.Now.Table, StringComparison.OrdinalIgnoreCase)).ToList();
 
         await conn.ExecuteAsync("DELETE FROM table_file WHERE cabinet_id = @cabinet", new { cabinet }, tx);
         await conn.ExecuteAsync("""
@@ -102,14 +113,19 @@ public static class TableUpdates
             """, files.Select(f => Params(cabinet, f)), tx);
         await conn.ExecuteAsync("UPDATE cabinet SET files_reported_at_utc = @now WHERE id = @cabinet", new { cabinet, now }, tx);
 
-        // a table taken off the cabinet before its member answered: nothing to share any more (a file renamed for the
-        // same game keeps its question)
-        var open = await conn.QueryAsync<(long Id, string TableName, string? RomId, string? Name)>("""
-            SELECT id, table_name, rom_id, name FROM table_update
+        // a renamed file keeps its open update (it follows the new name)
+        foreach (var (f, b) in renamed)
+            await conn.ExecuteAsync("""
+                UPDATE table_update SET table_name = @to
+                WHERE cabinet_id = @cabinet AND table_name = @from AND state IN ('pending', 'asked', 'approved', 'undeliverable')
+                """, new { cabinet, from = b!.Table, to = f.Table }, tx);
+
+        // a table taken off the cabinet before its member answered: nothing to share any more
+        var open = await conn.QueryAsync<(long Id, string TableName)>("""
+            SELECT id, table_name FROM table_update
             WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked', 'undeliverable')
             """, new { cabinet }, tx);
-        var gone = open.Where(o => !files.Any(f => string.Equals(f.Table, o.TableName, StringComparison.OrdinalIgnoreCase)
-                                                   || SameGame(new TableFile(o.TableName, o.RomId, o.Name, null, null, null), f)))
+        var gone = open.Where(o => !files.Any(f => string.Equals(f.Table, o.TableName, StringComparison.OrdinalIgnoreCase)))
             .Select(o => o.Id).ToArray();
         if (gone.Length > 0)
             await conn.ExecuteAsync("UPDATE table_update SET state = 'removed', decided_at_utc = @now WHERE id = ANY(@gone)", new { now, gone }, tx);
@@ -122,15 +138,15 @@ public static class TableUpdates
             var c = change;
             var replaced = await conn.QueryFirstOrDefaultAsync<(string Kind, string? OldVersion)?>("""
                 SELECT kind, old_version FROM table_update
-                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND (table_name = @table OR (rom_id IS NOT NULL AND rom_id = @rom))
+                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table
                 ORDER BY id LIMIT 1
-                """, new { cabinet, table = c.File.Table, rom = c.File.RomId }, tx);
+                """, new { cabinet, table = c.File.Table }, tx);
             if (replaced is { } r && (r.Kind == "added" || !string.Equals(r.OldVersion?.Trim(), c.File.Version?.Trim(), StringComparison.OrdinalIgnoreCase)))
                 c = c with { Kind = r.Kind, OldVersion = r.Kind == "added" ? null : r.OldVersion };
             await conn.ExecuteAsync("""
                 UPDATE table_update SET state = 'superseded', decided_at_utc = @now
-                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND (table_name = @table OR (rom_id IS NOT NULL AND rom_id = @rom))
-                """, new { cabinet, table = c.File.Table, rom = c.File.RomId, now }, tx);
+                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table
+                """, new { cabinet, table = c.File.Table, now }, tx);
             var p = Params(cabinet, c.File);
             p.Add("kind", c.Kind);
             p.Add("old", c.OldVersion);

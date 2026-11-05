@@ -196,10 +196,10 @@ public class TableUpdateFlowTests
         var (dmId, dm) = Assert.Single(In(s, "dm-" + Owner));
         Assert.Contains("Table: not identified: pick it below", dm["content"]!.GetValue<string>());
         var dropdown = dm["components"]![1]!["components"]![0]!;
-        Assert.Equal(TableUpdatePublisher.PickTable, dropdown["custom_id"]!.GetValue<string>());
+        Assert.StartsWith(TableUpdatePublisher.PickTable + ":", dropdown["custom_id"]!.GetValue<string>());
         Assert.Equal(["TF1", "TF2", "none"], dropdown["options"]!.AsArray().Select(o => o!["value"]!.GetValue<string>()));
 
-        var pick = DmPress(TableUpdatePublisher.PickTable, dmId);
+        var pick = DmPress(TableUpdatePublisher.PickTable, dmId); // as on questions sent before dropdowns carried the update's id
         pick["data"]!["values"] = new JsonArray("TF2");
         var r = await SendAsync(s, pick);
         var redrawn = (await r.Content.ReadFromJsonAsync<JsonObject>())!["data"]!;
@@ -309,6 +309,87 @@ public class TableUpdateFlowTests
         Assert.Contains("choose the right one", redrawn["content"]!.GetValue<string>());
         Assert.Equal(2, redrawn["components"]!.AsArray().Count); // buttons, table (no backglass on the VPin)
         Assert.DoesNotContain("Wrong match?", redrawn["components"]!.ToJsonString());
+    }
+
+    static string Catalog => VpsSample.Big(1200).TrimEnd(']') + "," + VpsSample.Json.Trim().TrimStart('[');
+    static TableFile Transformers(string authors = "HauntFreaks") => new("Transformers", "tf_180", "Transformers (Stern 2011)", "1.1", authors, null);
+
+    static async Task<JsonObject> SelectAsync(TestServer s, string customId, string value, string messageId = "m0", string userId = Owner)
+    {
+        var press = DmPress(customId, messageId, userId);
+        press["data"]!["values"] = new JsonArray(value);
+        var r = await SendAsync(s, press);
+        r.EnsureSuccessStatusCode();
+        return (await r.Content.ReadFromJsonAsync<JsonObject>())!["data"]!.AsObject();
+    }
+
+    static List<string> Dropdowns(JsonNode message) =>
+        message["components"]!.AsArray().Skip(1).Select(row => row!["components"]![0]!["custom_id"]!.GetValue<string>()).ToList();
+
+    [Fact]
+    public async Task A_question_about_several_tables_lets_the_member_pick_each_ones_entries()
+    {
+        var (s, cab) = await SetupAsync(vps: new FakeVpsSource { Database = Catalog });
+        await using var _ = s;
+        await s.Service<PinBot.Server.Vps.VpsCatalog>().RefreshAsync(default);
+        // 24 2.4.1 isn't found (the sample's 24 is repeated); Transformers 1.1 by HauntFreaks is one of two entries; JP's is sure
+        await ReportAsync(cab, File24("2.4.1"), Transformers(), new TableFile("JP Transformers", "tf_180", "JP's Transformers", "1.0", "JPSalas", null));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await s.Service<TableUpdatePublisher>().RunOnceAsync(default);
+        var (dmId, dm) = Assert.Single(In(s, "dm-" + Owner));
+        var tf = await s.CountAsync("SELECT id FROM table_update WHERE table_name = 'Transformers'");
+        var jp = await s.CountAsync("SELECT id FROM table_update WHERE table_name = 'JP Transformers'");
+        // the table PinBot isn't sure of comes first, with its dropdown
+        Assert.Equal([TableUpdatePublisher.Which, $"{TableUpdatePublisher.PickTable}:{tf}"], Dropdowns(dm));
+        Assert.Contains("wrong entry for **Transformers (Stern 2011)**", dm["content"]!.GetValue<string>());
+        var which = dm["components"]![1]!["components"]![0]!["options"]!.AsArray();
+        Assert.Equal([tf.ToString(), jp.ToString()], which.Select(o => o!["value"]!.GetValue<string>())); // 24 can't be picked
+
+        var picked = await SelectAsync(s, $"{TableUpdatePublisher.PickTable}:{tf}", "TF2", dmId);
+        Assert.Contains("Table: v1.1 by UnclePaulie, HauntFreaks (VPS `TF2`)", picked["content"]!.GetValue<string>());
+        var other = await SelectAsync(s, TableUpdatePublisher.Which, jp.ToString(), dmId);
+        Assert.Equal([TableUpdatePublisher.Which, $"{TableUpdatePublisher.PickTable}:{jp}"], Dropdowns(other));
+        // another game's entry for JP's table: refused
+        Assert.Contains("already answered", (await SelectAsync(s, $"{TableUpdatePublisher.PickTable}:{jp}", "TF2", dmId))["content"]!.GetValue<string>());
+
+        await PressAsync(s, DmPress(TableUpdatePublisher.Share, dmId));
+        await s.Service<TableUpdatePublisher>().RunOnceAsync(default);
+        Assert.Contains(In(s, "chanU"), p => p.Message["embeds"]![0]!["fields"]![0]!["value"]!.GetValue<string>().Contains("VPS `TF2`"));
+    }
+
+    [Fact]
+    public async Task A_member_fixes_the_vps_links_of_a_post_they_shared()
+    {
+        var (s, cab) = await SetupAsync(vps: new FakeVpsSource { Database = Catalog });
+        await using var _ = s;
+        await s.Service<PinBot.Server.Vps.VpsCatalog>().RefreshAsync(default);
+        await AskAsync(s, Command("updates", [Opt("share", "always")], userId: Owner));
+        await ReportAsync(cab, File24("2.0"), Transformers());
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await s.Service<TableUpdatePublisher>().RunOnceAsync(default);
+        var (postId, post) = Assert.Single(In(s, "chanU"));
+        Assert.Contains("not identified on VPS", post["embeds"]![0]!["fields"]![0]!["value"]!.GetValue<string>());
+
+        var reply = await AskAsync(s, Command("updates", userId: Owner));
+        var menu = reply["components"]![0]!["components"]![0]!;
+        Assert.Equal(TableUpdatePublisher.FixPost, menu["custom_id"]!.GetValue<string>());
+        var id = menu["options"]![0]!["value"]!.GetValue<string>();
+        Assert.Null((await AskAsync(s, Command("updates", userId: "999")))["components"]); // nothing of theirs to fix
+
+        Assert.Contains("isn't yours", (await SelectAsync(s, TableUpdatePublisher.FixPost, id, userId: "999"))["content"]!.GetValue<string>());
+        var editor = await SelectAsync(s, TableUpdatePublisher.FixPost, id);
+        Assert.Contains("Table: not identified: pick it below", editor["content"]!.GetValue<string>());
+        var pick = editor["components"]![0]!["components"]![0]!["custom_id"]!.GetValue<string>();
+        Assert.Equal($"{TableUpdatePublisher.FixPick}:table:{id}", pick);
+
+        Assert.Contains("isn't yours", (await SelectAsync(s, pick, "TF2", userId: "999"))["content"]!.GetValue<string>());
+        Assert.Contains("isn't yours", (await SelectAsync(s, pick, "T241"))["content"]!.GetValue<string>()); // another game's entry
+        var done = await SelectAsync(s, pick, "TF2");
+        Assert.Contains("✅ Post updated.", done["content"]!.GetValue<string>());
+        Assert.Equal([postId], s.Discord!.Edits);
+        Assert.Contains("VPS `TF2`", s.Discord.Messages[postId].Message["embeds"]![0]!["fields"]![0]!["value"]!.GetValue<string>());
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_vps_choice WHERE table_id = 'TF2'"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE vps_table_id = 'TF2' AND vps_game_id = 'GTF'"));
     }
 
     [Fact]

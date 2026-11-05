@@ -1,8 +1,7 @@
 # Table updates
 
-Status (2026-11-04): build steps 1–5 are implemented on the `table-updates` branch, except `/pinbot updates fix` and
-the correction dropdowns on a question about several tables (see [Build order](#build-order)). The later phase is
-design only.
+Status (2026-11-04): build steps 1–5 are implemented (see [Build order](#build-order)). The later phase is design
+only.
 
 When a member installs or updates a table on their VPin, PinBot can tell the community: who updated what, to which
 version, with links to where the table, backglass and ROM come from. Agreed 2026-11-04.
@@ -109,14 +108,19 @@ Several changes inside ~10 minutes (a member installing a batch) become **one** 
 - **The DM shows what PinBot matched, so the member can correct it in the same message:** "Table: v2.4.1 by
   RobbyKingPin, 32assassin +12 (VPS `QcOG228URt`)", and the same for the backglass. On a question about one table,
   dropdowns list that game's VPS table entries and backglasses (version, authors, features), plus "Not on VPS", with
-  PinBot's match preselected. Nothing to do when the match is right. When PinBot isn't sure, the row says "not
-  identified: pick it below". A pick redraws the question. Share is never blocked: unidentified rows are posted as
-  "not identified on VPS".
+  PinBot's match preselected. When PinBot is sure (one entry for the version and authors, and one backglass), the
+  dropdowns wait behind a **[Wrong match?]** button. When it isn't, the row says "not identified: pick it below". On a
+  question about several tables, a "Check a table's VPS entries" dropdown picks which table the entry dropdowns are
+  for (Discord allows 5 rows of components), starting with the first one PinBot isn't sure of. A pick redraws the
+  question. Share is never blocked: unidentified rows are posted as "not identified on VPS".
 - **The choice is remembered** per cabinet, table file and version in `table_vps_choice`, so the same file is never
   asked about again.
-- *Not built yet:* dropdowns on a question about several tables (Discord allows 5 rows of components, so this needs
-  one question per table or a "fix" flow), and `/pinbot updates fix table:<name>` to correct a match after sharing and
-  edit the posted message.
+- **Fixing a post after sharing:** `/pinbot updates` lists the member's shared posts in a dropdown. Picking one shows
+  its entry dropdowns; a pick is remembered like one in the DM, and the post in the updates channel is edited to link
+  the right entries. Only the member's own posts.
+- **Tables are told apart by file name.** Several tables of one game (VR, mods) can share a ROM, so the ROM never
+  merges two files' updates. It only recognizes a renamed file: a file that is gone and one that appeared for the same
+  game, whose open update follows the new name.
 - New `member_pref(discord_user_id, share_updates)`: `ask` (default), `always`, `never`.
   `/pinbot updates share:<always|ask|never>` changes it.
 - If a DM can't be delivered (DMs closed), the update stays unshared. It is never posted without a choice.
@@ -222,8 +226,8 @@ Table names, author names and VPS fields are data from strangers. Discord markdo
    tables.
 3. Discord: updates channel setting, DM with buttons, `/pinbot updates`, the channel post without links.
 4. VPS catalog: the fetch loop, sanity checks, Postgres snapshot, and matching that adds the exact-entry links.
-5. DM confirm: the dropdowns on a one-table question and `table_vps_choice`. Still to do: dropdowns for several tables
-   at once, and `/pinbot updates fix`.
+5. DM confirm: the dropdowns (one table, several tables, and "Wrong match?" when PinBot is sure), `table_vps_choice`,
+   and fixing a shared post from `/pinbot updates`.
 
 Steps 1–3 ship a complete feature with no VPS at all. Steps 4–5 make the posts point at exact entries. Shared POVs and
 script fixes come after, as a [later phase](#later-phase-shared-povs-settings-and-script-fixes).

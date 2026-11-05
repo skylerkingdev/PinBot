@@ -115,9 +115,19 @@ public static class Interactions
             var messageId = interaction["message"]?["id"]?.GetValue<string>();
             if (clicker is null || messageId is null) return Results.BadRequest();
             await using var c = await db.OpenAsync();
-            if (tu is TableUpdatePublisher.PickTable or TableUpdatePublisher.PickBackglass)
+            var value = interaction["data"]?["values"]?[0]?.GetValue<string>();
+            JsonObject? redraw = null;
+            if (tu == TableUpdatePublisher.FixPost) redraw = await TableUpdatePublisher.FixPostAsync(c, value, clicker, vps.Current);
+            else if (tu.StartsWith(TableUpdatePublisher.FixPick + ":", StringComparison.Ordinal))
+                redraw = await tableUpdates.FixPickAsync(c, tu, value, clicker, now, ctx.RequestAborted);
+            else if (tu == TableUpdatePublisher.Which) redraw = await TableUpdatePublisher.WhichAsync(c, value, clicker, messageId, vps.Current);
+            else goto question;
+            return redraw is not null
+                ? Json(new JsonObject { ["type"] = 7, ["data"] = redraw })
+                : Update("This post can't be changed any more, or it isn't yours.");
+            question:
+            if (TableUpdatePublisher.IsPick(tu))
             {
-                var value = interaction["data"]?["values"]?[0]?.GetValue<string>();
                 // the redrawn question (dropdowns keep the pick); nothing changes if it is no longer open
                 return await TableUpdatePublisher.PickAsync(c, tu, value, clicker, messageId, vps.Current, now) is { } redrawn
                     ? Json(new JsonObject { ["type"] = 7, ["data"] = redrawn })
@@ -542,8 +552,9 @@ public static class Interactions
         var where = channel is null
             ? "\n(Table updates are off on this server until a manager picks a channel with `/pinbot-admin channels updates:`.)"
             : $" Posts go to <#{channel}>.";
+        var fix = await TableUpdatePublisher.FixMenuAsync(conn, caller.UserId);
         return Reply(Trim($"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}\n{await TableUpdatePublisher.RecentAsync(conn, caller.UserId)}", 1990),
-            ephemeral: true);
+            ephemeral: true, components: fix is null ? null : new JsonArray(fix));
     }
 
     static async Task<IResult> PairAsync(NpgsqlConnection conn, Caller caller, DateTime now, ServerOptions options, DiscordOptions discord)
@@ -648,16 +659,17 @@ public static class Interactions
 
     static IResult Json(JsonObject o) => Results.Content(o.ToJsonString(), "application/json");
 
-    internal static IResult Reply(string content, bool ephemeral = false) => Json(new JsonObject
+    internal static IResult Reply(string content, bool ephemeral = false, JsonArray? components = null)
     {
-        ["type"] = 4,
-        ["data"] = new JsonObject
+        var data = new JsonObject
         {
             ["content"] = content,
             ["flags"] = ephemeral ? Ephemeral : 0,
             ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() }, // never ping anyone
-        },
-    });
+        };
+        if (components is not null) data["components"] = components;
+        return Json(new JsonObject { ["type"] = 4, ["data"] = data });
+    }
 
     /// <summary>Discord timestamp markup: shown in each viewer's own time zone.</summary>
     internal static string Ts(DateTime utc, string style) => $"<t:{new DateTimeOffset(utc, TimeSpan.Zero).ToUnixTimeSeconds()}:{style}>";
