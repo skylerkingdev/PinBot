@@ -656,7 +656,11 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         var setup = new StringBuilder();
         var version = u.Version is { } v ? $"v{Interactions.Md(v)}" : "version not stated";
         if (m?.Table is { } t)
+        {
             setup.Append($"🎰 Table: {LinkOr($"{version}{By(t.Authors)}", t.Url ?? m.Game.TablePageUrl(t))} · VPS `{Code(t.Id)}`\n");
+            // the entry's own note on VPS ("10.8.1 Mod of TastyWasps version"): says when the link is a patch or mod of another table
+            if (Note(t.Comment) is { } note) setup.Append($"↳ *{note}*\n");
+        }
         else
             setup.Append($"🎰 Table: {version} · file `{Code(u.TableName)}`{(m is null ? "" : " · not identified on VPS")}\n");
         if (m?.Backglass is { } b)
@@ -686,6 +690,15 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() }, // shows the member's name, never pings
             ["embeds"] = new JsonArray(embed),
         };
+    }
+
+    /// <summary>A VPS note on one line, without markdown or links, at most 150 characters; null when empty.</summary>
+    static string? Note(string? comment)
+    {
+        if (string.IsNullOrWhiteSpace(comment)) return null;
+        var line = string.Join(' ', comment.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        line = Interactions.Md(line.Replace("http://", "").Replace("https://", "")); // no auto-links from VPS text
+        return Trim(line, 150);
     }
 
     /// <summary>"[text](url)", or just the text when there is no link.</summary>

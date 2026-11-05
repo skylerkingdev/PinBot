@@ -15,7 +15,8 @@ static class VpsSample
             "unknownField": { "anything": [1, 2] },
             "tableFiles": [
               { "id": "T241", "version": "2.4.1", "authors": ["RobbyKingPin", "32assassin", "Freneticamnesic"], "tableFormat": "VPX",
-                "features": ["VR", "Hybrid"], "urls": [ { "url": "https://vpuniverse.example/files/24-v241/" } ], "imgUrl": "https://img.example/t241.webp" },
+                "features": ["VR", "Hybrid"], "urls": [ { "url": "https://vpuniverse.example/files/24-v241/" } ], "imgUrl": "https://img.example/t241.webp",
+                "comment": "10.8.1 *Mod* of\n the 2.0 version, see https://evil.example" },
               { "id": "T40", "version": "4.0", "authors": ["Bigus1", "32assassin"], "tableFormat": "VPX", "urls": [ { "url": "https://vpforums.example/24-40" } ] },
               { "id": "TFP", "version": "2.4.1", "authors": ["RobbyKingPin"], "tableFormat": "FP", "urls": [ { "url": "https://fp.example/24" } ] },
               { "id": "TBAD", "version": "9", "authors": ["x"], "tableFormat": "VPX", "urls": [ { "url": "javascript:alert(1)" }, { "url": "http://insecure.example" } ] },
@@ -144,6 +145,7 @@ public class VpsIndexTests
         Assert.Equal("https://img.example/t241.webp", embed["image"]!["url"]!.GetValue<string>());
         var setup = embed["fields"]![0]!["value"]!.GetValue<string>();
         Assert.Contains("🎰 Table: [v2.4.1 by RobbyKingPin, 32assassin, Freneticamnesic](https://vpuniverse.example/files/24-v241/) · VPS `T241`", setup);
+        Assert.Contains("· VPS `T241`\n↳ *10.8.1 \\*Mod\\* of the 2.0 version, see evil.example*\n", setup); // one line, no markdown or links
         Assert.Contains("🖼️ Backglass: [HauntFreaks v1.0.0 · full DMD](https://vpuniverse.example/b2s-hf) · VPS `B1`", setup);
         Assert.Contains("💾 ROM: [`twenty4_150`](https://vpuniverse.example/rom)", setup);
         Assert.Contains("🌈 Colorization: [Colorist v1.0](https://vpuniverse.example/color)", setup);
