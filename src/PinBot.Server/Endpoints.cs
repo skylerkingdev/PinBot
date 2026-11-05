@@ -87,7 +87,9 @@ public static class Endpoints
                         log.LogInformation("table files of cabinet {Cabinet}: {Changes}", cabinet, string.Join("; ", recorded.Changes));
                     if (recorded.Withdrawn > 0)
                         log.LogInformation("table files of cabinet {Cabinet}: {Count} unanswered update(s) withdrawn, their table is gone", cabinet, recorded.Withdrawn);
-                    if (recorded.Changes.Count > 0 || recorded.Withdrawn > 0) ctx.RequestServices.GetService<Discord.TableUpdatePublisher>()?.Wake();
+                    if (recorded.Completed > 0)
+                        log.LogInformation("table files of cabinet {Cabinet}: {Count} shared post(s) to complete (backglass or extras added)", cabinet, recorded.Completed);
+                    if (recorded.Changes.Count > 0 || recorded.Withdrawn > 0 || recorded.Completed > 0) ctx.RequestServices.GetService<Discord.TableUpdatePublisher>()?.Wake();
                 }
                 catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException)
                 {

@@ -23,7 +23,10 @@ public static class TableUpdates
     /// What one report contained: how many files, whether it was the cabinet's first (silent), what changed, and how many
     /// open questions were withdrawn because their table is no longer on the cabinet.
     /// </summary>
-    public sealed record Recorded(int Files, bool Baseline, IReadOnlyList<Change> Changes, int Withdrawn = 0);
+    public sealed record Recorded(int Files, bool Baseline, IReadOnlyList<Change> Changes, int Withdrawn = 0, int Completed = 0);
+
+    /// <summary>How long after sharing a post still takes on a backglass or extras added to the same file.</summary>
+    public static readonly TimeSpan CompletePostsWithin = TimeSpan.FromHours(24);
 
     /// <summary>
     /// Compares a cabinet's new list of table files with its previous one. A file that is gone and another that
@@ -169,7 +172,20 @@ public static class TableUpdates
             WHERE u.cabinet_id = @cabinet AND u.state IN ('pending', 'asked', 'approved')
               AND f.cabinet_id = u.cabinet_id AND f.table_name = u.table_name AND COALESCE(f.version, '') = COALESCE(u.version, '')
             """, new { cabinet }, tx);
-        return new(files.Count, baseline, changes, gone.Length);
+        // the same for a post shared in the last day: the setup it describes was completed (edited by the publisher)
+        var completed = await conn.ExecuteAsync("""
+            UPDATE table_update u SET backglass_name = f.backglass_name, backglass_author = f.backglass_author,
+                backglass_dmd = f.backglass_dmd, alt_color = f.alt_color, alt_sound = f.alt_sound, post_refresh = true,
+                -- the backglass is matched again, unless the member picked one for this file
+                vps_b2s_id = (SELECT c.b2s_id FROM table_vps_choice c
+                              WHERE c.cabinet_id = u.cabinet_id AND c.table_name = u.table_name AND c.version = COALESCE(u.version, ''))
+            FROM table_file f
+            WHERE u.cabinet_id = @cabinet AND u.state = 'shared' AND u.post_message_id IS NOT NULL AND u.decided_at_utc >= @since
+              AND f.cabinet_id = u.cabinet_id AND f.table_name = u.table_name AND COALESCE(f.version, '') = COALESCE(u.version, '')
+              AND (f.backglass_name IS DISTINCT FROM u.backglass_name OR f.backglass_author IS DISTINCT FROM u.backglass_author
+                   OR f.backglass_dmd IS DISTINCT FROM u.backglass_dmd OR f.alt_color <> u.alt_color OR f.alt_sound <> u.alt_sound)
+            """, new { cabinet, since = now - CompletePostsWithin }, tx);
+        return new(files.Count, baseline, changes, gone.Length, completed);
     }
 
     static DynamicParameters Params(string cabinet, TableFile f)

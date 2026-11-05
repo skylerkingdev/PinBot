@@ -118,6 +118,9 @@ Several changes inside ~10 minutes (a member installing a batch) become **one** 
 - **Fixing a post after sharing:** `/pinbot updates` lists the member's shared posts in a dropdown. Picking one shows
   its entry dropdowns; a pick is remembered like one in the DM, and the post in the updates channel is edited to link
   the right entries. Only the member's own posts.
+- **A post is completed for a day.** Members often add the backglass (or colorization, alt sound) a few minutes after
+  the table. When that reaches PinBot within 24 hours of sharing, for the same file and version, the post is edited to
+  show it, with the backglass matched on VPS again (a member's own pick still wins). After that, a post stays as it is.
 - **Tables are told apart by file name.** Several tables of one game (VR, mods) can share a ROM, so the ROM never
   merges two files' updates. It only recognizes a renamed file: a file that is gone and one that appeared for the same
   game, whose open update follows the new name.

@@ -59,6 +59,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             WHERE state IN ('pending', 'asked') AND detected_at_utc < @old
             """, new { now, old = now - AnswerWithin });
         await CloseQuestionsAsync(conn, now, ct);
+        await CompletePostsAsync(conn, ct);
         if (await Settings.GetAsync(conn, Settings.UpdatesChannel) is not { } channel) return; // the feature is off
 
         foreach (var u in await conn.QueryAsync<TableUpdateRow>($"SELECT {Columns} FROM table_update u WHERE u.state = 'approved' ORDER BY u.id"))
@@ -190,6 +191,38 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
                 return; // next pass
             }
             await conn.ExecuteAsync("UPDATE table_update SET dm_closed_at_utc = @now WHERE dm_message_id = @message", new { now, message });
+        }
+    }
+
+    /// <summary>
+    /// Shared posts whose table got its backglass or extras afterwards (TableUpdates.RecordAsync marks them): edited to
+    /// show the whole setup, with the VPS match worked out again (a member's own picks still win).
+    /// </summary>
+    async Task CompletePostsAsync(NpgsqlConnection conn, CancellationToken ct)
+    {
+        var posts = (await conn.QueryAsync<TableUpdateRow>($"""
+            SELECT {Columns} FROM table_update u WHERE u.post_refresh AND u.post_message_id IS NOT NULL ORDER BY u.id
+            """)).ToList();
+        foreach (var u in posts)
+        {
+            var match = Resolve(vps?.Current, u);
+            try
+            {
+                await api.EditMessageAsync(u.PostChannelId!, u.PostMessageId!, Post(u, match), ct);
+                await conn.ExecuteAsync("""
+                    UPDATE table_update SET post_refresh = false, vps_game_id = @game, vps_table_id = @table, vps_b2s_id = @b2s WHERE id = @Id
+                    """, new { u.Id, game = match?.Game.Id, table = match?.Table?.Id ?? u.VpsTableId, b2s = match?.Backglass?.Id ?? u.VpsB2sId });
+                log.LogInformation("table update {Id}: post completed with what was added since", u.Id);
+            }
+            catch (DiscordRestException ex) when (ex.Status is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden)
+            {
+                await conn.ExecuteAsync("UPDATE table_update SET post_refresh = false WHERE id = @Id", new { u.Id }); // deleted, or no access
+            }
+            catch (Exception ex) when (ex is DiscordRestException or HttpRequestException or TaskCanceledException)
+            {
+                log.LogWarning("table-update post not completed: {Message}", ex.Message);
+                return; // next pass
+            }
         }
     }
 

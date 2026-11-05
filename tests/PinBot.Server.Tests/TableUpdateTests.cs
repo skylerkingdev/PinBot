@@ -424,6 +424,34 @@ public class TableUpdateFlowTests
     }
 
     [Fact]
+    public async Task A_backglass_added_after_sharing_completes_the_post_within_a_day()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        var publisher = s.Service<TableUpdatePublisher>();
+        await AskAsync(s, Command("updates", [Opt("share", "always")], userId: Owner));
+        var noB2s = File24("2.4.1") with { BackglassName = null, BackglassAuthor = null, BackglassDmdType = null };
+        await ReportAsync(cab, noB2s);
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        var (postId, post) = Assert.Single(In(s, "chanU"));
+        Assert.DoesNotContain("Backglass", post["embeds"]![0]!["fields"]![0]!["value"]!.GetValue<string>());
+
+        await ReportAsync(cab, File24("2.4.1")); // the backglass arrives after the post
+        await publisher.RunOnceAsync(default);
+        Assert.Equal([postId], s.Discord!.Edits);
+        Assert.Contains("Backglass by HauntFreaks", s.Discord.Messages[postId].Message["embeds"]![0]!["fields"]![0]!["value"]!.GetValue<string>());
+        Assert.Single(In(s, "chanU")); // no new post
+        await publisher.RunOnceAsync(default);
+        Assert.Single(s.Discord.Edits); // once
+
+        s.Clock.Advance(TimeSpan.FromHours(25));
+        await ReportAsync(cab, noB2s); // a day later: the post stays as it is
+        await publisher.RunOnceAsync(default);
+        Assert.Single(s.Discord.Edits);
+    }
+
+    [Fact]
     public async Task Two_updates_before_answering_show_the_whole_change()
     {
         var (s, cab) = await SetupAsync();

@@ -287,3 +287,7 @@ ALTER TABLE table_update DROP CONSTRAINT IF EXISTS table_update_state_check;
 ALTER TABLE table_update ADD CONSTRAINT table_update_state_check
     CHECK (state IN ('pending', 'asked', 'approved', 'shared', 'skipped', 'superseded', 'removed', 'expired', 'undeliverable'));
 ALTER TABLE table_update ADD COLUMN IF NOT EXISTS dm_closed_at_utc timestamptz;
+
+-- v21: a backglass, colorization or alt sound that reaches the cabinet after its table was shared (installers often add
+-- the backglass a few minutes later) is added to the post: same file and version, within a day of sharing.
+ALTER TABLE table_update ADD COLUMN IF NOT EXISTS post_refresh boolean NOT NULL DEFAULT false;
