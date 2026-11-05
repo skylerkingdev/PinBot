@@ -325,3 +325,17 @@ CREATE TABLE IF NOT EXISTS setup_install (
     notified_at_utc  timestamptz
 );
 CREATE INDEX IF NOT EXISTS setup_install_pending ON setup_install (cabinet_id) WHERE state = 'pending';
+
+-- v24: script fixes (docs/TABLE-UPDATES.md). A changed script with the same table version is a 'fix' update, holding
+-- only the changed lines (a unified diff from script_base to script_hash), asked about and shared like a POV, with its
+-- own member setting; installed on another VPin through setup_install (base: the script it must find, target: the
+-- script it must produce).
+ALTER TABLE table_update ADD COLUMN IF NOT EXISTS script_base text;
+ALTER TABLE table_update ADD COLUMN IF NOT EXISTS script_diff text;
+ALTER TABLE table_update DROP CONSTRAINT IF EXISTS table_update_kind_check;
+ALTER TABLE table_update ADD CONSTRAINT table_update_kind_check CHECK (kind IN ('added', 'updated', 'pov', 'fix'));
+ALTER TABLE setup_install ADD COLUMN IF NOT EXISTS base text;
+ALTER TABLE setup_install ADD COLUMN IF NOT EXISTS target text;
+ALTER TABLE setup_install DROP CONSTRAINT IF EXISTS setup_install_kind_check;
+ALTER TABLE setup_install ADD CONSTRAINT setup_install_kind_check CHECK (kind IN ('pov', 'fix'));
+ALTER TABLE member_pref ADD COLUMN IF NOT EXISTS share_fixes text NOT NULL DEFAULT 'ask' CHECK (share_fixes IN ('ask', 'always', 'never'));

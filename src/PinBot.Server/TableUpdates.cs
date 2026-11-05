@@ -16,7 +16,7 @@ public static class TableUpdates
     public sealed record Change(TableFile File, string Kind, string? OldVersion)
     {
         public override string ToString() =>
-            $"{File.Name ?? File.Table} {Kind switch { "added" => $"added ({File.Version ?? "no version"})", "pov" => $"{File.PovMode} POV changed", _ => $"{OldVersion} -> {File.Version}" }}";
+            $"{File.Name ?? File.Table} {Kind switch { "added" => $"added ({File.Version ?? "no version"})", "pov" => $"{File.PovMode} POV changed", "fix" => "script changed", _ => $"{OldVersion} -> {File.Version}" }}";
     }
 
     /// <summary>
@@ -41,10 +41,22 @@ public static class TableUpdates
         {
             if (old is null) changes.Add(new(f, "added", null));
             else if (NewVersion(old.Version, f.Version)) changes.Add(new(f, "updated", old.Version));
-            else if (NewPov(old, f)) changes.Add(new(f, "pov", null));
+            else
+            {
+                if (NewFix(old, f)) changes.Add(new(f, "fix", null));
+                if (NewPov(old, f)) changes.Add(new(f, "pov", null));
+            }
         }
         return changes;
     }
+
+    /// <summary>
+    /// The script changed for the same table version, and the VPin sent the changed lines from the script it had before
+    /// (it can't when it never saw that script, or the change is too large to be a fix).
+    /// </summary>
+    static bool NewFix(TableFile old, TableFile now) =>
+        old.ScriptHash is not null && now.ScriptHash is not null && old.ScriptHash != now.ScriptHash
+        && now.ScriptDiff is not null && now.ScriptBase == old.ScriptHash;
 
     /// <summary>
     /// A view saved or changed for the same table version, in the same view mode (a VPin switching mode, or an agent
@@ -114,7 +126,13 @@ public static class TableUpdates
         BackglassDmdType = f.BackglassDmdType is >= 0 and <= 9 ? f.BackglassDmdType : null,
         PovMode = f.PovMode is "desktop" or "cabinet" or "fss" ? f.PovMode : null,
         Pov = CleanPov(f.PovMode, f.Pov),
+        ScriptBase = F(f.ScriptBase) is { Length: 64 } b && b.All(char.IsAsciiHexDigit) && f.ScriptDiff is { Length: > 0 and <= MaxDiff } d && d.StartsWith("@@ -")
+            ? b.ToLowerInvariant() : null,
+        ScriptDiff = F(f.ScriptBase) is { Length: 64 } && f.ScriptDiff is { Length: > 0 and <= MaxDiff } d2 && d2.StartsWith("@@ -") ? d2 : null,
     };
+
+    /// <summary>A fix's changed lines, at most (larger changes are a new version of the table, not a fix).</summary>
+    public const int MaxDiff = 16_000;
 
     /// <summary>
     /// Stores the cabinet's reported files and records what changed, inside the inventory's transaction. A newer update
@@ -130,13 +148,14 @@ public static class TableUpdates
             .Select(r => r.ToFile()).ToList();
         var changes = Detect(previous, files, baseline);
         // a view this VPin just installed from another member's share (or put back) is not the member's own change
-        if (changes.Any(c => c.Kind == "pov"))
+        if (changes.Any(c => c.Kind is "pov" or "fix"))
         {
-            var installed = (await conn.QueryAsync<(string TableName, string Content)>("""
-                SELECT table_name, content FROM setup_install WHERE cabinet_id = @cabinet AND kind = 'pov' AND state = 'installed'
-                  AND done_at_utc >= @since
+            var installed = (await conn.QueryAsync<(string Kind, string TableName, string What)>("""
+                SELECT kind, table_name, CASE kind WHEN 'fix' THEN COALESCE(CASE action WHEN 'undo' THEN previous ELSE target END, '') ELSE content END
+                FROM setup_install WHERE cabinet_id = @cabinet AND state = 'installed' AND done_at_utc >= @since
                 """, new { cabinet, since = now - TimeSpan.FromDays(30) }, tx)).ToHashSet();
-            changes.RemoveAll(c => c.Kind == "pov" && installed.Contains((c.File.Table, c.File.Pov ?? "")));
+            changes.RemoveAll(c => c.Kind == "pov" && installed.Contains(("pov", c.File.Table, c.File.Pov ?? ""))
+                                || c.Kind == "fix" && installed.Contains(("fix", c.File.Table, c.File.ScriptHash ?? "")));
         }
         var renamed = baseline ? [] : Pair(previous, files)
             .Where(p => p.Before is { } b && !string.Equals(b.Table, p.Now.Table, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -174,18 +193,18 @@ public static class TableUpdates
             // keeps its first old version
             // a POV change replaces only an unanswered POV; a table change replaces both (its own POV comes with it)
             var c = change;
-            var pov = c.Kind == "pov";
+            var pov = c.Kind is "pov" or "fix"; // a shared setup: replaces only an unanswered one of its own kind
             var replaced = pov ? null : await conn.QueryFirstOrDefaultAsync<(string Kind, string? OldVersion)?>("""
                 SELECT kind, old_version FROM table_update
-                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table AND kind <> 'pov'
+                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table AND kind NOT IN ('pov', 'fix')
                 ORDER BY id LIMIT 1
                 """, new { cabinet, table = c.File.Table }, tx);
             if (replaced is { } r && (r.Kind == "added" || !string.Equals(r.OldVersion?.Trim(), c.File.Version?.Trim(), StringComparison.OrdinalIgnoreCase)))
                 c = c with { Kind = r.Kind, OldVersion = r.Kind == "added" ? null : r.OldVersion };
             await conn.ExecuteAsync("""
                 UPDATE table_update SET state = 'superseded', decided_at_utc = @now
-                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table AND (NOT @pov OR kind = 'pov')
-                """, new { cabinet, table = c.File.Table, now, pov }, tx);
+                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table AND (NOT @pov OR kind = @kind)
+                """, new { cabinet, table = c.File.Table, now, pov, kind = c.Kind }, tx);
             var p = Params(cabinet, c.File);
             p.Add("kind", c.Kind);
             p.Add("old", c.OldVersion);
@@ -193,9 +212,9 @@ public static class TableUpdates
             await conn.ExecuteAsync("""
                 INSERT INTO table_update (cabinet_id, table_name, kind, old_version, rom_id, name, version, authors, script_hash,
                                           backglass_name, backglass_author, backglass_dmd, alt_color, alt_sound, detected_at_utc, owner_user_id,
-                                          pov_mode, pov)
+                                          pov_mode, pov, script_base, script_diff)
                 SELECT @cabinet, @Table, @kind, @old, @RomId, @Name, @Version, @Authors, @ScriptHash,
-                       @BackglassName, @BackglassAuthor, @BackglassDmdType, @AltColor, @AltSound, @now, paired_by, @PovMode, @Pov
+                       @BackglassName, @BackglassAuthor, @BackglassDmdType, @AltColor, @AltSound, @now, paired_by, @PovMode, @Pov, @ScriptBase, @ScriptDiff
                 FROM cabinet WHERE id = @cabinet
                 """, p, tx);
         }
@@ -206,7 +225,7 @@ public static class TableUpdates
                 backglass_name = f.backglass_name, backglass_author = f.backglass_author, backglass_dmd = f.backglass_dmd,
                 alt_color = f.alt_color, alt_sound = f.alt_sound
             FROM table_file f
-            WHERE u.cabinet_id = @cabinet AND u.state IN ('pending', 'asked', 'approved')
+            WHERE u.cabinet_id = @cabinet AND u.state IN ('pending', 'asked', 'approved') AND u.kind <> 'fix' -- a fix is its own script
               AND f.cabinet_id = u.cabinet_id AND f.table_name = u.table_name AND COALESCE(f.version, '') = COALESCE(u.version, '')
             """, new { cabinet }, tx);
         // the same for a post shared in the last day: the setup it describes was completed (edited by the publisher)
@@ -217,7 +236,7 @@ public static class TableUpdates
                 vps_b2s_id = (SELECT c.b2s_id FROM table_vps_choice c
                               WHERE c.cabinet_id = u.cabinet_id AND c.table_name = u.table_name AND c.version = COALESCE(u.version, ''))
             FROM table_file f
-            WHERE u.cabinet_id = @cabinet AND u.state = 'shared' AND u.kind <> 'pov' AND u.post_message_id IS NOT NULL AND u.decided_at_utc >= @since
+            WHERE u.cabinet_id = @cabinet AND u.state = 'shared' AND u.kind NOT IN ('pov', 'fix') AND u.post_message_id IS NOT NULL AND u.decided_at_utc >= @since
               AND f.cabinet_id = u.cabinet_id AND f.table_name = u.table_name AND COALESCE(f.version, '') = COALESCE(u.version, '')
               AND (f.backglass_name IS DISTINCT FROM u.backglass_name OR f.backglass_author IS DISTINCT FROM u.backglass_author
                    OR f.backglass_dmd IS DISTINCT FROM u.backglass_dmd OR f.alt_color <> u.alt_color OR f.alt_sound <> u.alt_sound)

@@ -73,6 +73,31 @@ public sealed partial class SessionWatcher(
 
     volatile bool _setupsPending;
 
+    /// <summary>A script fix, or taking one back: never while a competition on that game is running here.</summary>
+    static SetupInstallResult InstallFix(TableInfo table, SetupInstall s)
+    {
+        var now = DateTime.UtcNow;
+        if (LocalState.Load().Competitions.Any(c => c.IsActive(now) && (c.Table.Equals(table.TablePath, StringComparison.OrdinalIgnoreCase)
+                                                                        || (table.Rom is not null && c.Rom.Equals(table.Rom, StringComparison.OrdinalIgnoreCase)))))
+            return new("refused", "a competition on this game is running on this VPin: try again after it ends");
+        try
+        {
+            if (s.UndoOf is { } undo)
+            {
+                var after = FixFiles.Undo(table.TablePath, undo);
+                Log.Good($"[setups] took back a shared fix for {s.Table}");
+                return new("installed", null, s.Target, after);
+            }
+            var (before, now2) = FixFiles.Install(table.TablePath, s.Id, s.Content, s.Base, s.Target);
+            Log.Good($"[setups] installed a shared script fix for {s.Table} (as {Path.GetFileName(Path.ChangeExtension(table.TablePath, ".vbs"))})");
+            return new("installed", null, before, now2);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return new("refused", ex.Message);
+        }
+    }
+
     /// <summary>
     /// With no table running: installs the shared POVs a member chose for this VPin (docs/TABLE-UPDATES.md), each only
     /// into the table and view mode it was checked for, and tells the server what happened. The VPin checks everything
@@ -93,8 +118,9 @@ public sealed partial class SessionWatcher(
         {
             var table = _tables.FirstOrDefault(t => Path.GetFileNameWithoutExtension(t.TablePath).Equals(s.Table, StringComparison.OrdinalIgnoreCase));
             SetupInstallResult result;
-            if (s.Kind != "pov") result = new("refused", $"this PinBot can't install a {s.Kind} yet");
+            if (s.Kind is not ("pov" or "fix")) result = new("refused", $"this PinBot can't install a {s.Kind} yet");
             else if (table is null || !File.Exists(table.TablePath)) result = new("refused", "the table isn't on this VPin any more");
+            else if (s.Kind == "fix") result = InstallFix(table, s);
             else if (inst.ViewMode is not { } mode || mode != s.Mode) result = new("refused", $"this VPin plays in {inst.ViewMode ?? "an unknown"} view mode, not {s.Mode}");
             else
             {
@@ -351,6 +377,9 @@ public sealed partial class SessionWatcher(
         Wake();
     }
 
+    /// <summary>A shared fix shows its whole change: larger ones are a new version of the table, not a fix.</summary>
+    const int MaxFixDiff = 16_000;
+
     /// <summary>Re-reads only the tables that changed; the server hears about it only if the list really changed.</summary>
     void RefreshTables()
     {
@@ -369,6 +398,11 @@ public sealed partial class SessionWatcher(
                 continue;
             }
             var info = Inventory.Describe(path, inst, maps, current, scriptCache);
+            // the script changed but not the version: the changed lines go with the table list, to be offered as a fix
+            if (i >= 0 && list[i].Meta is { ScriptHash: { } was } old && info.Meta is { ScriptHash: { } now } meta && was != now
+                && old.Version == meta.Version && ScriptStore.Load(was) is { } before && ScriptStore.Load(now) is { } after
+                && ScriptDiff.Make(before, after) is { Length: <= MaxFixDiff } diff)
+                info = info with { Change = new(was, diff) };
             if (i >= 0 && Sync.AgentSync.Inventory([list[i]], current).SequenceEqual(Sync.AgentSync.Inventory([info], current))
                 && Sync.AgentSync.Files([list[i]]).SequenceEqual(Sync.AgentSync.Files([info]))) { list[i] = info; continue; }
             if (i >= 0) list[i] = info; else list.Add(info);
@@ -585,6 +619,19 @@ public sealed partial class SessionWatcher(
                 p.Renamed += (_, e) => { BackglassChanged(e.OldFullPath); BackglassChanged(e.FullPath); };
                 p.EnableRaisingEvents = true;
                 watchers.Add(p);
+                // a sidecar .vbs is the table's script: a fix written next to it changes the table
+                var v = new FileSystemWatcher(dir, "*.vbs")
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                    InternalBufferSize = 8192,
+                };
+                v.Created += (_, e) => BackglassChanged(e.FullPath);
+                v.Changed += (_, e) => BackglassChanged(e.FullPath);
+                v.Deleted += (_, e) => BackglassChanged(e.FullPath);
+                v.Renamed += (_, e) => { BackglassChanged(e.OldFullPath); BackglassChanged(e.FullPath); };
+                v.EnableRaisingEvents = true;
+                watchers.Add(v);
             }
             catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
             {

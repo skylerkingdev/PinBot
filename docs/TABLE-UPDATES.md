@@ -305,49 +305,46 @@ Status: built, not yet tested on two real VPins.
 - **Not yet:** comparing the sharer's playfield screen with the member's for window-mode cabinet POVs; subscribing to
   a member's POVs; a legacy `.pov` file.
 
-### Script fixes (`.vbs`): offered, shown, and installed only on the member's accept
+### Script fixes (`.vbs`): shared like POVs, installed only on the member's accept (built)
+
+Status: built, not yet tested on real VPins. Same flow as POVs (DM, post, "Use this fix", install queue, DM with Undo).
 
 **A `.vbs` is a program.** VPX runs it with the user's full rights (files, shell, network). So PinBot never pushes a
-script silently or to everyone. A fix is offered to each member it fits, shown in full, and installed only when that
-member clicks **[Install]**, with these limits:
+script silently or to everyone: each member sees the whole change and installs it with a click, within these limits.
 
-- **Exact base only.** A fix is a patch from one script (hash A) to another (hash B). It's offered only to cabs whose
-  current script is exactly A. After patching, the agent checks the result is exactly B, or it writes nothing. What
-  gets installed is byte-for-byte what was shown.
-- **Small and readable.** The DM shows the whole diff. Fixes over ~200 changed lines can't be installed automatically;
-  they're notify-only.
-- **Risky code blocks automatic install.** The **agent** scans the added lines itself, so a compromised server can't
-  skip the check. These words block the one-click install: `CreateObject`, `GetObject`, `Execute`, `ExecuteGlobal`,
-  `Eval`, `WScript`, `Shell`, `FileSystemObject`, `XMLHTTP`, `ADODB`, `Run`/`Exec` on a non-VPX object, and new file
-  or URL paths. Such fixes become notify-only, with the reason shown. (VPX's own `ExecuteGlobal GetTextFile(...)` line
-  for `controller.vbs` is already in the base and isn't "added".)
-- **Who can post installable fixes:** members with a **Table fixer** role (set by managers), or any member's fix once
-  a manager approves it. Everyone else's fixes are notify-only.
-- **Written as a sidecar, never into the .vpx.** The agent writes `<table>.vbs` next to the table (VPX prefers it over
-  the embedded script). The 200 MB .vpx is never modified. An existing sidecar is backed up first.
-  **[Undo]** in the DM, or `/pinbot updates undo`, puts back exactly what was there.
-- **A stale sidecar is caught.** A sidecar overrides the table's own script, so if the member later installs a new
-  version of the table, an old PinBot-installed fix would silently replace the new script. The agent remembers which
-  base each fix was installed over. When the .vpx's embedded script no longer matches that base, it renames the sidecar
-  to `<table>.vbs.pinbot-off` and tells the member.
-- **Timing:** only when no table is running, and never on a game with a running competition. It's queued and
-  installed when the competition ends, and the member is told so.
-- **Members can also decline and install by hand.** Notify-only fixes link to the post and diff as before.
+1. **Noticed on the sharer's VPin:** a table's script hash changes and its version doesn't. Edits inside the `.vpx`
+   (VPin Studio's script editor, the VPX editor) and sidecar `.vbs` files are the same to PinBot (`TableScript.Read`).
+   The VPin keeps each table's script locally (compressed, `scripts/` in PinBot's folder, unused ones dropped after 30
+   days) so it can work out the **changed lines** (a unified diff, 3 lines of context, Myers' algorithm). Only those
+   lines are sent, with the hash of the script they apply to; never the whole script. More than 400 changed lines or
+   16 KB is a new version of the table, not a fix: nothing is offered.
+2. **The same DM:** "24 (Stern 2009): script changed (12 lines)". Script fixes have their own setting,
+   `/pinbot updates fixes:<ask|always|never>`, and go to the setups channel like POVs.
+3. **The post** shows the changed lines as a `diff` code block, and says the fix installs only on exactly the script
+   it was made from, as a `.vbs`. **"Use this fix"** appears only when the whole change fits in the post, so a member
+   always sees all of what they install.
+4. **"Use this fix"** checks the clicker's VPins privately: same game and version, and the **exact script** the fix
+   was made from (its hash). Otherwise: "has a different script for this table", or "already has this fix".
+5. **The VPin installs it when no table is running**, and checks everything again itself (a compromised server can't
+   skip it):
+   - its current script is exactly the base; the patched result is exactly the shared script (hash), or nothing is
+     written;
+   - **risky code is refused:** an added line (outside comments) using `CreateObject`, `GetObject`, `WScript`,
+     `Shell`, `Execute`, `ExecuteGlobal`, `Eval`, `FileSystemObject`, file or folder operations, `RegWrite`,
+     `XMLHTTP`, `WinHttp`, `ADODB`, `Environment` or `Exec`. Removed lines don't count;
+   - **never during a competition** on that game on that VPin ("try again after it ends");
+   - written as a **sidecar** `<table>.vbs` next to the table (VPX prefers it over the script in the `.vpx`); the
+     `.vpx` is never modified. An existing sidecar is copied to `setup-backups` first.
+6. **The DM** says it's installed, with **Undo**: the earlier sidecar comes back, or PinBot's sidecar is removed (only
+   if the script is still the installed fix; otherwise it refuses, rather than lose the member's own later edits).
+7. **A stale sidecar is caught.** If the member later replaces the table (its own script inside the `.vpx` changes),
+   PinBot's sidecar would override the new table's script: the VPin renames it to `<table>.vbs.pinbot-old` and logs it.
 
-- **Fixes live in two places.** Some come as a sidecar `.vbs`. Many are edits to the script **inside the .vpx**
-  (VPin Studio's "Edit Script" does this, and so does the VPX editor). The agent already extracts the script from
-  either place (`TableScript.Read`), so it treats them the same way: it caches a **hash of the script text** next to
-  the ROM facts, so an edit is noticed whichever way it was made.
-- **Matching a fix to a table:** a posted fix records the hash of the script it was made from. A member is told about
-  it only when their script hash matches that base, which means "this fix is for exactly your script", not just the
-  same table version.
-- **Sharing your own edit:** when a table's script hash changes but its version doesn't, the Share DM can offer
-  "Share your script change": the diff from the previous script, with both hashes, posted for others to install (under
-  the limits above) or apply by hand. To produce the diff, the agent keeps the previous script text of each table
-  locally.
-- **Competitions:** if a table's script hash changes (sidecar or embedded) while a competition on that game is
-  running, scores from that cab after the change are marked for a manager's review rather than silently counted,
-  since scripts can change tilt, ball save or scoring.
+- **Installed is not "changed":** what a VPin installs (or undoes) becomes its table's known script on the server at
+  once, so the member isn't asked to share a fix they just installed.
+- **Not yet:** a note from the sharer ("what does this fix do?") when sharing; a **Table fixer** role so only trusted
+  members' fixes can be installed from Discord; telling the member when a stale fix was moved aside; marking scores
+  made after a script change during a competition for review.
 
 ### Worked example: fast flips for 24 (checked 2026-11-04)
 

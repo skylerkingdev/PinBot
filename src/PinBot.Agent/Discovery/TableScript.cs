@@ -19,6 +19,12 @@ public static partial class TableScript
         var sidecar = Path.ChangeExtension(vpxPath, ".vbs");
         if (File.Exists(sidecar))
             return (File.ReadAllText(sidecar, Encoding.Latin1), "sidecar .vbs");
+        return ReadEmbedded(vpxPath);
+    }
+
+    /// <summary>The script inside the .vpx itself, whether or not a sidecar .vbs overrides it.</summary>
+    public static (string? Script, string Source) ReadEmbedded(string vpxPath)
+    {
         try
         {
             using var root = RootStorage.OpenRead(vpxPath);

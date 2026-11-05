@@ -22,7 +22,9 @@ public sealed record TableFile(
     string? BackglassName = null, string? BackglassAuthor = null, int? BackglassDmdType = null,
     bool AltColor = false, bool AltSound = false,
     // the table's view (POV) for the VPin's view mode ("desktop", "cabinet", "fss"): "Key = value" lines of View… keys
-    string? PovMode = null, string? Pov = null);
+    string? PovMode = null, string? Pov = null,
+    // the script changed and the version didn't: the script hash it changed from, and the changed lines (unified diff)
+    string? ScriptBase = null, string? ScriptDiff = null);
 
 /// <summary>
 /// Replaces the cabinet's whole inventory. <see cref="Files"/> (newer agents) lists every table file, including tables
@@ -48,8 +50,11 @@ public sealed record AgentCompetitionsResponse(DateTime ServerTimeUtc, IReadOnly
     int Setups = 0);
 
 /// <summary>Something a member chose to install on this VPin from another member's share. Kind "pov": <paramref name="Content"/>
-/// is the view keys for <paramref name="Mode"/> ("" puts the table's own view back).</summary>
-public sealed record SetupInstall(long Id, string Kind, string Table, string? Mode, string Content);
+/// is the view keys for <paramref name="Mode"/> ("" puts the table's own view back).
+/// Kind "fix": <paramref name="Content"/> is a unified diff from script <paramref name="Base"/> to <paramref name="Target"/>.
+/// An undo names the install it takes back (<paramref name="UndoOf"/>).</summary>
+public sealed record SetupInstall(long Id, string Kind, string Table, string? Mode, string Content, string? Base = null, string? Target = null,
+    long? UndoOf = null);
 
 /// <summary>What the VPin did: "installed" or "refused" (with why), and the table's view before and after.</summary>
 public sealed record SetupInstallResult(string State, string? Detail = null, string? Previous = null, string? Now = null);

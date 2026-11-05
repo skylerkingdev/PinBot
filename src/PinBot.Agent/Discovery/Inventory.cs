@@ -20,7 +20,8 @@ public sealed record TableInfo(
     BackglassInfo? Backglass = null,
     bool AltColor = false,
     bool AltSound = false,
-    PovInfo? Pov = null)
+    PovInfo? Pov = null,
+    ScriptChange? Change = null)
 {
     /// <summary>
     /// Could take part in a competition: a decoder for this exact revision, and evidence the ROM really writes this file:
@@ -38,6 +39,9 @@ public sealed record TableInfo(
         : "";
 }
 
+/// <summary>A table's script changed while its version didn't: the hash it changed from, and the changed lines.</summary>
+public sealed record ScriptChange(string Base, string Diff);
+
 public static class Inventory
 {
     public static List<TableInfo> Build(Installations inst, MemoryMaps maps, LocalState state, TableScriptCache? cache = null)
@@ -54,12 +58,17 @@ public static class Inventory
     public static ScriptFacts ReadScript(string vpxPath)
     {
         var (script, source) = TableScript.Read(vpxPath);
+        // kept (compressed, locally) so that when the script changes, the changed lines can be shared as a fix
+        if (script is not null) ScriptStore.Save(TableMetadata.HashScript(script), script);
         return new(script is null ? [] : TableScript.FindRoms(script).ToList(), script is null ? 0 : TableScript.FindNvOffset(script), source,
             TableMetadata.Read(vpxPath, script), Discovery.Backglass.Read(Discovery.Backglass.PathFor(vpxPath)));
     }
 
     public static TableInfo Describe(string vpxPath, Installations inst, MemoryMaps maps, LocalState state, TableScriptCache? cache = null)
     {
+        // a fix PinBot installed for this table's old script must not override a replaced table's new one
+        try { if (FixFiles.MoveAsideIfStale(vpxPath) is { } note) Log.Warn($"[setups] {note}"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         var facts = cache?.Get(vpxPath, () => ReadScript(vpxPath)) ?? ReadScript(vpxPath);
         var source = facts.Source;
         // VPMAlias.txt maps a script's ROM name to the real ROM, whose name PinMAME uses for NVRAM.

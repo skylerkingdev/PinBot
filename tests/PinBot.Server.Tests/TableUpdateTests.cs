@@ -460,12 +460,12 @@ public class TableUpdateFlowTests
             return (await r.Content.ReadFromJsonAsync<JsonObject>())!;
         }
         Assert.Contains("No VPin is linked to you", (await Click(use, "999"))["data"]!["content"]!.GetValue<string>());
-        Assert.Contains("has v2.4.1: this POV was made for v2.0", (await Click(use, "777"))["data"]!["content"]!.GetValue<string>());
+        Assert.Contains("has v2.4.1: this cabinet POV was made for v2.0", (await Click(use, "777"))["data"]!["content"]!.GetValue<string>());
         var offer = (await Click(use, Friend))["data"]!;
         Assert.Equal(64, offer["flags"]!.GetValue<int>()); // only the friend sees it
         Assert.Contains("fits your VPin", offer["content"]!.GetValue<string>());
         var go = offer["components"]![0]!["components"]![0]!;
-        Assert.Equal("Install on Den", go["label"]!.GetValue<string>());
+        Assert.Equal("Install on your VPin", go["label"]!.GetValue<string>()); // their only VPin
 
         var queued = await Click(go["custom_id"]!.GetValue<string>(), Friend);
         Assert.Contains("Queued for **Den**", queued["data"]!["content"]!.GetValue<string>());
@@ -495,6 +495,82 @@ public class TableUpdateFlowTests
             new SetupInstallResult("installed", null, install.Content, "ViewCabFOV = 60"))).EnsureSuccessStatusCode();
         await publisher.RunOnceAsync(default);
         Assert.Contains(s.Discord!.DirectMessages(Friend), m => m.Contains("Your own view of **24 (Stern 2009)** is back on **Den**"));
+    }
+
+    static readonly string ScriptA = new('a', 64), ScriptB = new('b', 64), ScriptC = new('c', 64);
+    const string FastFlips = "@@ -10,3 +10,4 @@\n Sub Table1_Init\n     Controller.Run GetPlayerHWnd\n+    FastFlips = True\n End Sub\n";
+
+    static TableFile WithScript(TableFile f, string hash, string? from = null, string? diff = null) =>
+        f with { ScriptHash = hash, ScriptBase = from, ScriptDiff = diff };
+
+    [Fact]
+    public async Task A_script_fix_is_shared_with_its_changed_lines_and_installed_on_a_friends_exact_script()
+    {
+        const string Friend = "444555666";
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        var publisher = s.Service<TableUpdatePublisher>();
+        var (friendCabId, friendCab, _) = await s.PairCabinetAsync("Den");
+        await ExecAsync(s, $"UPDATE cabinet SET paired_by = '{Friend}' WHERE id = '{friendCabId}'");
+        await ReportAsync(friendCab, WithScript(File24("2.0", table: "24 Stern"), ScriptA));
+        var (otherCabId, otherCab, _) = await s.PairCabinetAsync("Basement");
+        await ExecAsync(s, $"UPDATE cabinet SET paired_by = '777' WHERE id = '{otherCabId}'");
+        await ReportAsync(otherCab, WithScript(File24("2.0"), ScriptC)); // its own edits: a different script
+
+        await ReportAsync(cab, WithScript(File24("2.0"), ScriptA));
+        await ReportAsync(cab, WithScript(File24("2.0"), ScriptB, ScriptC, FastFlips)); // not from the script it had: no fix
+        Assert.Equal(0, await s.CountAsync("SELECT count(*) FROM table_update"));
+        await ReportAsync(cab, WithScript(File24("2.0"), ScriptA));
+        await ReportAsync(cab, WithScript(File24("2.0"), ScriptB, ScriptA, FastFlips));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        var (dmId, dm) = Assert.Single(In(s, "dm-" + Owner));
+        Assert.Contains("a script change", dm["content"]!.GetValue<string>());
+        Assert.Contains("**24 (Stern 2009)**: script changed (1 line)", dm["content"]!.GetValue<string>());
+        Assert.Contains("script fixes are shared automatically", await PressAsync(s, DmPress(TableUpdatePublisher.Always, dmId)));
+        Assert.Equal(1, await s.CountAsync($"SELECT count(*) FROM member_pref WHERE share_fixes = 'always' AND share_povs = 'ask'"));
+        await publisher.RunOnceAsync(default);
+        var (postId, post) = Assert.Single(In(s, "chanU"));
+        var description = post["embeds"]![0]!["description"]!.GetValue<string>();
+        Assert.Contains($"<@{Owner}> shared a **script fix** for this table (1 line changed)", description);
+        Assert.Contains("```diff\n@@ -10,3 +10,4 @@\n Sub Table1_Init\n     Controller.Run GetPlayerHWnd\n+    FastFlips = True\n End Sub\n```", description);
+        var use = post["components"]![0]!["components"]![0]!;
+        Assert.Equal("Use this fix", use["label"]!.GetValue<string>());
+
+        async Task<JsonObject> Click(string id, string user, string message)
+        {
+            var r = await SendAsync(s, DmPress(id, message, user));
+            r.EnsureSuccessStatusCode();
+            return (await r.Content.ReadFromJsonAsync<JsonObject>())!;
+        }
+        var useId = use["custom_id"]!.GetValue<string>();
+        Assert.Contains("has a different script for this table", (await Click(useId, "777", postId))["data"]!["content"]!.GetValue<string>());
+        Assert.Contains("Nothing to install: **Garage** already has this fix", (await Click(useId, Owner, postId))["data"]!["content"]!.GetValue<string>());
+        var offer = (await Click(useId, Friend, postId))["data"]!;
+        Assert.Contains("as a `.vbs`", offer["content"]!.GetValue<string>());
+        var go = offer["components"]![0]!["components"]![0]!["custom_id"]!.GetValue<string>();
+        Assert.Contains("Queued for **Den**", (await Click(go, Friend, postId))["data"]!["content"]!.GetValue<string>());
+
+        var install = Assert.Single((await friendCab.GetFromJsonAsync<List<SetupInstall>>($"{ApiV1.Prefix}/agent/setups"))!);
+        Assert.Equal(new SetupInstall(install.Id, "fix", "24 Stern", null, FastFlips, ScriptA, ScriptB), install);
+        (await friendCab.PutAsJsonAsync($"{ApiV1.Prefix}/agent/setups/{install.Id}", new SetupInstallResult("installed", null, ScriptA, ScriptB)))
+            .EnsureSuccessStatusCode();
+        await ReportAsync(friendCab, WithScript(File24("2.0", table: "24 Stern"), ScriptB, ScriptA, FastFlips));
+        Assert.Equal(0, await s.CountAsync($"SELECT count(*) FROM table_update WHERE cabinet_id = '{friendCabId}'")); // installed, not theirs
+
+        await publisher.RunOnceAsync(default);
+        var (doneId, done) = Assert.Single(In(s, "dm-" + Friend));
+        Assert.Contains($"Installed <@{Owner}>'s script fix for **24 (Stern 2009)** v2.0 on **Den**. Undo takes it back.", done["content"]!.GetValue<string>());
+        var undo = done["components"]![0]!["components"]![0]!["custom_id"]!.GetValue<string>();
+        Assert.Contains("Taking the fix back", (await Click(undo, Friend, doneId))["data"]!["content"]!.GetValue<string>());
+        var back = Assert.Single((await friendCab.GetFromJsonAsync<List<SetupInstall>>($"{ApiV1.Prefix}/agent/setups"))!);
+        Assert.Equal(install.Id, back.UndoOf);
+        (await friendCab.PutAsJsonAsync($"{ApiV1.Prefix}/agent/setups/{back.Id}", new SetupInstallResult("installed", null, ScriptB, ScriptA)))
+            .EnsureSuccessStatusCode();
+        await ReportAsync(friendCab, WithScript(File24("2.0", table: "24 Stern"), ScriptA));
+        await publisher.RunOnceAsync(default);
+        Assert.Contains(s.Discord!.DirectMessages(Friend), m => m.Contains("**24 (Stern 2009)** runs its own script again on **Den**"));
+        Assert.Equal(0, await s.CountAsync($"SELECT count(*) FROM table_update WHERE cabinet_id = '{friendCabId}'"));
     }
 
     [Fact]

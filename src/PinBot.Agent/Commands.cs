@@ -27,6 +27,7 @@ sealed class Commands(MemoryMaps maps, IReadOnlyDictionary<string, List<string>>
         foreach (var d in inst.GlobalNvramDirs) Log.Info($"nvram:  {d}");
         var tables = Inventory.Build(inst, maps, state, PinBot.Agent.Discovery.TableScriptCache.Default);
         PinBot.Agent.Discovery.TableScriptCache.Default.Save();
+        PinBot.Agent.Discovery.ScriptStore.Prune(tables.Select(t => t.Meta?.ScriptHash).OfType<string>().ToHashSet(), TimeSpan.FromDays(30));
         return (inst, tables, state);
     }
 

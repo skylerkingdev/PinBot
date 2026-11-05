@@ -56,6 +56,9 @@ public static class Interactions
                                { "name": "Never share, don't ask", "value": "never" } ] },
                 { "type": 3, "name": "povs", "description": "When to share a table's view (POV) you change", "required": false,
                   "choices": [ { "name": "Ask me each time", "value": "ask" }, { "name": "Always share", "value": "always" },
+                               { "name": "Never share, don't ask", "value": "never" } ] },
+                { "type": 3, "name": "fixes", "description": "When to share a table's script you change (a fix)", "required": false,
+                  "choices": [ { "name": "Ask me each time", "value": "ask" }, { "name": "Always share", "value": "always" },
                                { "name": "Never share, don't ask", "value": "never" } ] } ] },
             { "type": 1, "name": "help", "description": "How PinBot works (only you see it)" }
           ]
@@ -124,6 +127,10 @@ public static class Interactions
                 return Json(new JsonObject { ["type"] = 4, ["data"] = await SetupInstalls.UseAsync(c, useUpdate, clicker) });
             if (tu.Split(':') is ["tu", "povgo", var goId, var goCabinet] && long.TryParse(goId, out var goUpdate))
                 return Update(await SetupInstalls.GoAsync(c, changes, goUpdate, goCabinet, clicker, now));
+            if (tu.Split(':') is ["tu", "usefix", var fixId] && long.TryParse(fixId, out var fixUpdate))
+                return Json(new JsonObject { ["type"] = 4, ["data"] = await SetupInstalls.UseAsync(c, fixUpdate, clicker, "fix") });
+            if (tu.Split(':') is ["tu", "fixgo", var fixGoId, var fixGoCabinet] && long.TryParse(fixGoId, out var fixGoUpdate))
+                return Update(await SetupInstalls.GoAsync(c, changes, fixGoUpdate, fixGoCabinet, clicker, now, "fix"));
             if (tu.Split(':') is ["tu", "povundo", var undoId] && long.TryParse(undoId, out var undoInstall))
                 return Update(await SetupInstalls.UndoAsync(c, changes, undoInstall, clicker, now));
             var value = interaction["data"]?["values"]?[0]?.GetValue<string>();
@@ -550,15 +557,21 @@ public static class Interactions
     static async Task<IResult> UpdatesAsync(NpgsqlConnection conn, Dictionary<string, JsonNode> args, Caller caller)
     {
         var saved = false;
-        foreach (var (option, povs) in new[] { ("share", false), ("povs", true) })
+        foreach (var (option, cls) in new[] { ("share", "table"), ("povs", "pov"), ("fixes", "fix") })
             if (args.TryGetValue(option, out var s) && s["value"]!.GetValue<string>() is "ask" or "always" or "never")
             {
-                await TableUpdatePublisher.SetPrefAsync(conn, caller.UserId, s["value"]!.GetValue<string>(), povs);
+                await TableUpdatePublisher.SetPrefAsync(conn, caller.UserId, s["value"]!.GetValue<string>(), cls);
                 saved = true;
             }
-        var row = await conn.QueryFirstOrDefaultAsync<(string? Updates, string? Povs)>(
-            "SELECT share_updates, share_povs FROM member_pref WHERE discord_user_id = @id", new { id = caller.UserId });
-        var (pref, povPref) = (row.Updates ?? "ask", row.Povs ?? "ask");
+        var row = await conn.QueryFirstOrDefaultAsync<(string? Updates, string? Povs, string? Fixes)>(
+            "SELECT share_updates, share_povs, share_fixes FROM member_pref WHERE discord_user_id = @id", new { id = caller.UserId });
+        var (pref, povPref, fixPref) = (row.Updates ?? "ask", row.Povs ?? "ask", row.Fixes ?? "ask");
+        var fixState = fixPref switch
+        {
+            "always" => "**always shared** when you change a table's script.",
+            "never" => "**never shared**.",
+            _ => "**asked each time** you change a table's script.",
+        };
         var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel);
         var setups = await Settings.GetAsync(conn, Settings.SetupsChannel) ?? channel;
         var state = pref switch
@@ -577,7 +590,7 @@ public static class Interactions
             ? "\n(Table updates are off on this server until a manager picks a channel with `/pinbot-admin channels updates:`.)"
             : $" Posts go to <#{channel}>.";
         var povWhere = setups is null || setups == channel ? "" : $" Posts go to <#{setups}>.";
-        var text = $"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}\nYour POVs are {povState}{povWhere}\n" +
+        var text = $"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}\nYour POVs are {povState}{povWhere}\nYour script fixes are {fixState}\n" +
                    await TableUpdatePublisher.RecentAsync(conn, caller.UserId);
         var fix = await TableUpdatePublisher.FixMenuAsync(conn, caller.UserId);
         return Reply(Trim(text, 1990),

@@ -18,7 +18,7 @@ public sealed class TableScriptCache(string path)
     public static TableScriptCache Default { get; } = new(Path.Combine(LocalState.Dir, "tables-cache.json"));
 
     /// <summary>Bumped when <see cref="ScriptFacts"/> gains something read from the files: older entries are read again.</summary>
-    internal const int CurrentFormat = 2;
+    internal const int CurrentFormat = 3; // 3: each table's script kept in ScriptStore
 
     sealed record Entry(long Length, long Modified, ScriptFacts Facts, int Format = 0);
 
