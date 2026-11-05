@@ -96,7 +96,7 @@ public sealed class AgentSync(HttpClient http, Outbox outbox)
     public static List<TableFile> Files(IEnumerable<TableInfo> tables) =>
         tables.Select(t => new TableFile(
                 Path.GetFileNameWithoutExtension(t.TablePath), t.Rom, t.Meta?.Name, t.Meta?.Version, t.Meta?.Authors, t.Meta?.ScriptHash,
-                t.Backglass?.Name, t.Backglass?.Author, t.Backglass?.DmdType, t.AltColor, t.AltSound))
+                t.Backglass?.Name, t.Backglass?.Author, t.Backglass?.DmdType, t.AltColor, t.AltSound, t.Pov?.Mode, t.Pov?.Settings))
             .ToList();
 
     public async Task PushInventoryAsync(IEnumerable<TableInfo> tables, CancellationToken ct = default)

@@ -49,9 +49,12 @@ public static class Interactions
             { "type": 1, "name": "end", "description": "End a competition early (one you started; managers: any)",
               "options": [ { "type": 4, "name": "competition", "description": "Which competition to end", "required": true, "autocomplete": true } ] },
             { "type": 1, "name": "pair", "description": "Connect your VPin: get pinbot.exe and a one-time pairing line" },
-            { "type": 1, "name": "updates", "description": "Whether PinBot shares the tables you install or update (leave empty to see)",
+            { "type": 1, "name": "updates", "description": "Whether PinBot shares the tables and POVs you change (leave empty to see)",
               "options": [
-                { "type": 3, "name": "share", "description": "When to share", "required": false,
+                { "type": 3, "name": "share", "description": "When to share tables you install or update", "required": false,
+                  "choices": [ { "name": "Ask me each time", "value": "ask" }, { "name": "Always share", "value": "always" },
+                               { "name": "Never share, don't ask", "value": "never" } ] },
+                { "type": 3, "name": "povs", "description": "When to share a table's view (POV) you change", "required": false,
                   "choices": [ { "name": "Ask me each time", "value": "ask" }, { "name": "Always share", "value": "always" },
                                { "name": "Never share, don't ask", "value": "never" } ] } ] },
             { "type": 1, "name": "help", "description": "How PinBot works (only you see it)" }
@@ -66,7 +69,8 @@ public static class Interactions
                 { "type": 7, "name": "challenges", "description": "Channel for challenge leaderboards", "required": false, "channel_types": [0] },
                 { "type": 7, "name": "weekly", "description": "Channel for weekly competition leaderboards", "required": false, "channel_types": [0] },
                 { "type": 7, "name": "info", "description": "Channel for the guide, new VPins and update news", "required": false, "channel_types": [0] },
-                { "type": 7, "name": "updates", "description": "Channel for members' table updates (off until set)", "required": false, "channel_types": [0] } ] },
+                { "type": 7, "name": "updates", "description": "Channel for members' table updates (off until set)", "required": false, "channel_types": [0] },
+                { "type": 7, "name": "setups", "description": "Channel for shared POVs (default: the updates channel)", "required": false, "channel_types": [0] } ] },
             { "type": 1, "name": "weekly", "description": "Automatic weekly competition: on/off and when it starts",
               "options": [
                 { "type": 5, "name": "enabled", "description": "On or off", "required": true },
@@ -517,15 +521,18 @@ public static class Interactions
         }
         if (Picked("info") is { } info) await Settings.SetAsync(conn, Settings.InfoChannel, info); // the guide is posted there next pass
         if (Picked("updates") is { } updates) await Settings.SetAsync(conn, Settings.UpdatesChannel, updates);
+        if (Picked("setups") is { } setups) await Settings.SetAsync(conn, Settings.SetupsChannel, setups);
         if (args.Count > 0) publisher.Wake();
         string Show(string? id) => id is null ? "not set" : $"<#{id}>";
         var infoNow = await Settings.GetAsync(conn, Settings.InfoChannel);
         var updatesNow = await Settings.GetAsync(conn, Settings.UpdatesChannel);
+        var setupsNow = await Settings.GetAsync(conn, Settings.SetupsChannel);
         return Reply((args.Count > 0 ? "✅ Saved. PinBot's channels (running competitions keep their card where it is):\n" : "PinBot's channels:\n") +
                      $"• Challenges: {Show(discord.ChannelId)}\n" +
                      $"• Weekly: {(discord.WeeklyChannelId is null ? $"{Show(discord.ChannelId)} (same as challenges)" : Show(discord.WeeklyChannelId))}\n" +
                      $"• Guide and new VPins: {Show(infoNow)}\n" +
                      $"• Table updates: {(updatesNow is null ? "not set (off)" : Show(updatesNow))}\n" +
+                     $"• Shared POVs: {(setupsNow is not null ? Show(setupsNow) : updatesNow is null ? "not set (off)" : $"{Show(updatesNow)} (same as table updates)")}\n" +
                      "PinBot needs **Send Messages** and **Embed Links** in each, and **Pin Messages** in the competition channels.", ephemeral: true);
     }
 
@@ -536,24 +543,37 @@ public static class Interactions
     static async Task<IResult> UpdatesAsync(NpgsqlConnection conn, Dictionary<string, JsonNode> args, Caller caller)
     {
         var saved = false;
-        if (args.TryGetValue("share", out var s) && s["value"]!.GetValue<string>() is "ask" or "always" or "never")
-        {
-            await TableUpdatePublisher.SetPrefAsync(conn, caller.UserId, s["value"]!.GetValue<string>());
-            saved = true;
-        }
-        var pref = await conn.ExecuteScalarAsync<string?>("SELECT share_updates FROM member_pref WHERE discord_user_id = @id", new { id = caller.UserId }) ?? "ask";
+        foreach (var (option, povs) in new[] { ("share", false), ("povs", true) })
+            if (args.TryGetValue(option, out var s) && s["value"]!.GetValue<string>() is "ask" or "always" or "never")
+            {
+                await TableUpdatePublisher.SetPrefAsync(conn, caller.UserId, s["value"]!.GetValue<string>(), povs);
+                saved = true;
+            }
+        var row = await conn.QueryFirstOrDefaultAsync<(string? Updates, string? Povs)>(
+            "SELECT share_updates, share_povs FROM member_pref WHERE discord_user_id = @id", new { id = caller.UserId });
+        var (pref, povPref) = (row.Updates ?? "ask", row.Povs ?? "ask");
         var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel);
+        var setups = await Settings.GetAsync(conn, Settings.SetupsChannel) ?? channel;
         var state = pref switch
         {
             "always" => "**always shared**: each table you install or update on your VPin is posted without asking.",
             "never" => "**never shared**: PinBot doesn't ask and doesn't post.",
             _ => "**asked each time**: PinBot sends you a DM when you install or update a table, and posts it only if you say so.",
         };
+        var povState = povPref switch
+        {
+            "always" => "**always shared** when you change a table's view.",
+            "never" => "**never shared**.",
+            _ => "**asked each time** you change a table's view.",
+        };
         var where = channel is null
             ? "\n(Table updates are off on this server until a manager picks a channel with `/pinbot-admin channels updates:`.)"
             : $" Posts go to <#{channel}>.";
+        var povWhere = setups is null || setups == channel ? "" : $" Posts go to <#{setups}>.";
+        var text = $"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}\nYour POVs are {povState}{povWhere}\n" +
+                   await TableUpdatePublisher.RecentAsync(conn, caller.UserId);
         var fix = await TableUpdatePublisher.FixMenuAsync(conn, caller.UserId);
-        return Reply(Trim($"{(saved ? "✅ Saved. " : "")}Your table updates are {state}{where}\n{await TableUpdatePublisher.RecentAsync(conn, caller.UserId)}", 1990),
+        return Reply(Trim(text, 1990),
             ephemeral: true, components: fix is null ? null : new JsonArray(fix));
     }
 

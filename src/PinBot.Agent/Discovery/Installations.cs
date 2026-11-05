@@ -8,8 +8,10 @@ public sealed record Installations(
     IReadOnlyList<string> TableDirs,
     IReadOnlyList<string> GlobalNvramDirs,
     IReadOnlyList<string> Notes,
-    IReadOnlyDictionary<string, string>? RomAliases = null)
+    IReadOnlyDictionary<string, string>? RomAliases = null,
+    string? ViewMode = null)
 {
+    /// <summary>The view mode VPX plays in here ("desktop", "cabinet", "fss"): which POV of each table is shared.</summary>
     /// <summary>VPMAlias.txt: script ROM name -> real ROM name (PinMAME writes NVRAM under the real name).</summary>
     public IReadOnlyDictionary<string, string> Aliases => RomAliases ?? new Dictionary<string, string>();
 
@@ -97,7 +99,9 @@ public sealed record Installations(
         if (tables.Count == 0) notes.Add("no table folder found; use --tables <dir> once");
         var distinctNvram = Dedupe(nvram);
         if (distinctNvram.Count > 1) notes.Add($"{distinctNvram.Count} global NVRAM folders exist; the active one per ROM is confirmed by observing a session");
-        return new(Dedupe(vpx), Dedupe(tables), Dedupe(nvram), notes, aliases);
+        var mode = Pov.FindMode(vpx);
+        notes.Add($"VPX view mode: {mode ?? "unknown (no VPinballX.ini found)"}");
+        return new(Dedupe(vpx), Dedupe(tables), Dedupe(nvram), notes, aliases, mode);
     }
 
     static readonly string[] ConventionalVpxDirs =

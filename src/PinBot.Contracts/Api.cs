@@ -20,7 +20,9 @@ public sealed record InventoryTable(string Table, string RomId, bool Eligible, s
 public sealed record TableFile(
     string Table, string? RomId, string? Name, string? Version, string? Authors, string? ScriptHash,
     string? BackglassName = null, string? BackglassAuthor = null, int? BackglassDmdType = null,
-    bool AltColor = false, bool AltSound = false);
+    bool AltColor = false, bool AltSound = false,
+    // the table's view (POV) for the VPin's view mode ("desktop", "cabinet", "fss"): "Key = value" lines of View… keys
+    string? PovMode = null, string? Pov = null);
 
 /// <summary>
 /// Replaces the cabinet's whole inventory. <see cref="Files"/> (newer agents) lists every table file, including tables

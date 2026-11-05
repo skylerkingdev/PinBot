@@ -16,7 +16,7 @@ public static class TableUpdates
     public sealed record Change(TableFile File, string Kind, string? OldVersion)
     {
         public override string ToString() =>
-            $"{File.Name ?? File.Table} {(Kind == "added" ? $"added ({File.Version ?? "no version"})" : $"{OldVersion} -> {File.Version}")}";
+            $"{File.Name ?? File.Table} {Kind switch { "added" => $"added ({File.Version ?? "no version"})", "pov" => $"{File.PovMode} POV changed", _ => $"{OldVersion} -> {File.Version}" }}";
     }
 
     /// <summary>
@@ -41,8 +41,31 @@ public static class TableUpdates
         {
             if (old is null) changes.Add(new(f, "added", null));
             else if (NewVersion(old.Version, f.Version)) changes.Add(new(f, "updated", old.Version));
+            else if (NewPov(old, f)) changes.Add(new(f, "pov", null));
         }
         return changes;
+    }
+
+    /// <summary>
+    /// A view saved or changed for the same table version, in the same view mode (a VPin switching mode, or an agent
+    /// that just started sending views, is not a change).
+    /// </summary>
+    static bool NewPov(TableFile old, TableFile now) =>
+        now.Pov is not null && now.PovMode is not null && string.Equals(old.PovMode, now.PovMode, StringComparison.Ordinal)
+        && !string.Equals(old.Pov, now.Pov, StringComparison.Ordinal);
+
+    /// <summary>"Key = value" lines of View… keys for the mode, as the agent sends them; anything else is dropped.</summary>
+    static readonly System.Text.RegularExpressions.Regex PovLine = new(@"^View(DT|Cab|FSS)[A-Za-z0-9]{1,33} = -?[0-9.]+(e[-+]?[0-9]+)?$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    internal static string? CleanPov(string? mode, string? pov)
+    {
+        var prefix = mode switch { "desktop" => "ViewDT", "cabinet" => "ViewCab", "fss" => "ViewFSS", _ => null };
+        if (prefix is null || pov is null) return null;
+        var lines = pov.Split('\n').Select(l => l.Trim()).Where(l => l.Length <= 64 && PovLine.IsMatch(l))
+            .Where(l => l.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Take(64).ToList();
+        return lines.Count == 0 ? null : string.Join("\n", lines);
     }
 
     /// <summary>Each file now, with the file it was before: the same file name, else a file of the same game that is gone (renamed).</summary>
@@ -89,6 +112,8 @@ public static class TableUpdates
         ScriptHash = F(f.ScriptHash) is { Length: 64 } h && h.All(char.IsAsciiHexDigit) ? h.ToLowerInvariant() : null,
         BackglassName = F(f.BackglassName), BackglassAuthor = F(f.BackglassAuthor),
         BackglassDmdType = f.BackglassDmdType is >= 0 and <= 9 ? f.BackglassDmdType : null,
+        PovMode = f.PovMode is "desktop" or "cabinet" or "fss" ? f.PovMode : null,
+        Pov = CleanPov(f.PovMode, f.Pov),
     };
 
     /// <summary>
@@ -110,9 +135,9 @@ public static class TableUpdates
         await conn.ExecuteAsync("DELETE FROM table_file WHERE cabinet_id = @cabinet", new { cabinet }, tx);
         await conn.ExecuteAsync("""
             INSERT INTO table_file (cabinet_id, table_name, rom_id, name, version, authors, script_hash,
-                                    backglass_name, backglass_author, backglass_dmd, alt_color, alt_sound)
+                                    backglass_name, backglass_author, backglass_dmd, alt_color, alt_sound, pov_mode, pov)
             VALUES (@cabinet, @Table, @RomId, @Name, @Version, @Authors, @ScriptHash,
-                    @BackglassName, @BackglassAuthor, @BackglassDmdType, @AltColor, @AltSound)
+                    @BackglassName, @BackglassAuthor, @BackglassDmdType, @AltColor, @AltSound, @PovMode, @Pov)
             """, files.Select(f => Params(cabinet, f)), tx);
         await conn.ExecuteAsync("UPDATE cabinet SET files_reported_at_utc = @now WHERE id = @cabinet", new { cabinet, now }, tx);
 
@@ -138,27 +163,30 @@ public static class TableUpdates
             // the open update it replaces (a table read halfway through copying, or changed twice before the member
             // answered): the change is still relative to what the member last had, so "new" stays new and an update
             // keeps its first old version
+            // a POV change replaces only an unanswered POV; a table change replaces both (its own POV comes with it)
             var c = change;
-            var replaced = await conn.QueryFirstOrDefaultAsync<(string Kind, string? OldVersion)?>("""
+            var pov = c.Kind == "pov";
+            var replaced = pov ? null : await conn.QueryFirstOrDefaultAsync<(string Kind, string? OldVersion)?>("""
                 SELECT kind, old_version FROM table_update
-                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table
+                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table AND kind <> 'pov'
                 ORDER BY id LIMIT 1
                 """, new { cabinet, table = c.File.Table }, tx);
             if (replaced is { } r && (r.Kind == "added" || !string.Equals(r.OldVersion?.Trim(), c.File.Version?.Trim(), StringComparison.OrdinalIgnoreCase)))
                 c = c with { Kind = r.Kind, OldVersion = r.Kind == "added" ? null : r.OldVersion };
             await conn.ExecuteAsync("""
                 UPDATE table_update SET state = 'superseded', decided_at_utc = @now
-                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table
-                """, new { cabinet, table = c.File.Table, now }, tx);
+                WHERE cabinet_id = @cabinet AND state IN ('pending', 'asked') AND table_name = @table AND (NOT @pov OR kind = 'pov')
+                """, new { cabinet, table = c.File.Table, now, pov }, tx);
             var p = Params(cabinet, c.File);
             p.Add("kind", c.Kind);
             p.Add("old", c.OldVersion);
             p.Add("now", now);
             await conn.ExecuteAsync("""
                 INSERT INTO table_update (cabinet_id, table_name, kind, old_version, rom_id, name, version, authors, script_hash,
-                                          backglass_name, backglass_author, backglass_dmd, alt_color, alt_sound, detected_at_utc, owner_user_id)
+                                          backglass_name, backglass_author, backglass_dmd, alt_color, alt_sound, detected_at_utc, owner_user_id,
+                                          pov_mode, pov)
                 SELECT @cabinet, @Table, @kind, @old, @RomId, @Name, @Version, @Authors, @ScriptHash,
-                       @BackglassName, @BackglassAuthor, @BackglassDmdType, @AltColor, @AltSound, @now, paired_by
+                       @BackglassName, @BackglassAuthor, @BackglassDmdType, @AltColor, @AltSound, @now, paired_by, @PovMode, @Pov
                 FROM cabinet WHERE id = @cabinet
                 """, p, tx);
         }
@@ -180,7 +208,7 @@ public static class TableUpdates
                 vps_b2s_id = (SELECT c.b2s_id FROM table_vps_choice c
                               WHERE c.cabinet_id = u.cabinet_id AND c.table_name = u.table_name AND c.version = COALESCE(u.version, ''))
             FROM table_file f
-            WHERE u.cabinet_id = @cabinet AND u.state = 'shared' AND u.post_message_id IS NOT NULL AND u.decided_at_utc >= @since
+            WHERE u.cabinet_id = @cabinet AND u.state = 'shared' AND u.kind <> 'pov' AND u.post_message_id IS NOT NULL AND u.decided_at_utc >= @since
               AND f.cabinet_id = u.cabinet_id AND f.table_name = u.table_name AND COALESCE(f.version, '') = COALESCE(u.version, '')
               AND (f.backglass_name IS DISTINCT FROM u.backglass_name OR f.backglass_author IS DISTINCT FROM u.backglass_author
                    OR f.backglass_dmd IS DISTINCT FROM u.backglass_dmd OR f.alt_color <> u.alt_color OR f.alt_sound <> u.alt_sound)
@@ -196,8 +224,9 @@ public static class TableUpdates
     }
 
     sealed record FileRow(string CabinetId, string TableName, string? RomId, string? Name, string? Version, string? Authors, string? ScriptHash,
-        string? BackglassName, string? BackglassAuthor, int? BackglassDmd, bool AltColor, bool AltSound)
+        string? BackglassName, string? BackglassAuthor, int? BackglassDmd, bool AltColor, bool AltSound, string? PovMode, string? Pov)
     {
-        public TableFile ToFile() => new(TableName, RomId, Name, Version, Authors, ScriptHash, BackglassName, BackglassAuthor, BackglassDmd, AltColor, AltSound);
+        public TableFile ToFile() => new(TableName, RomId, Name, Version, Authors, ScriptHash, BackglassName, BackglassAuthor, BackglassDmd, AltColor, AltSound,
+            PovMode, Pov);
     }
 }

@@ -9,7 +9,8 @@ namespace PinBot.Server.Discord;
 public sealed record TableUpdateRow(long Id, string CabinetId, string TableName, string Kind, string? OldVersion, string? RomId,
     string? Name, string? Version, string? Authors, string? BackglassName, string? BackglassAuthor, int? BackglassDmd,
     bool AltColor, bool AltSound, DateTime DetectedAtUtc, string State, string? OwnerUserId, string? DmChannelId, string? DmMessageId,
-    string? VpsTableId = null, string? VpsB2sId = null, string? PostChannelId = null, string? PostMessageId = null);
+    string? VpsTableId = null, string? VpsB2sId = null, string? PostChannelId = null, string? PostMessageId = null,
+    string? PovMode = null, string? Pov = null);
 
 /// <summary>
 /// Table updates (docs/TABLE-UPDATES.md): asks the member who paired the cabinet whether to share each new table or
@@ -47,7 +48,8 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
     const string Columns = """
         u.id, u.cabinet_id, u.table_name, u.kind, u.old_version, u.rom_id, u.name, u.version, u.authors, u.backglass_name,
         u.backglass_author, u.backglass_dmd, u.alt_color, u.alt_sound, u.detected_at_utc, u.state, u.owner_user_id,
-        u.dm_channel_id, u.dm_message_id, u.vps_table_id, u.vps_b2s_id, u.post_channel_id, u.post_message_id
+        u.dm_channel_id, u.dm_message_id, u.vps_table_id, u.vps_b2s_id, u.post_channel_id, u.post_message_id,
+        u.pov_mode, u.pov
         """;
 
     public async Task RunOnceAsync(CancellationToken ct)
@@ -60,10 +62,11 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             """, new { now, old = now - AnswerWithin });
         await CloseQuestionsAsync(conn, now, ct);
         await CompletePostsAsync(conn, ct);
-        if (await Settings.GetAsync(conn, Settings.UpdatesChannel) is not { } channel) return; // the feature is off
+        var (updatesChannel, setupsChannel) = await ChannelsAsync(conn);
+        if (updatesChannel is null && setupsChannel is null) return; // the feature is off
 
         foreach (var u in await conn.QueryAsync<TableUpdateRow>($"SELECT {Columns} FROM table_update u WHERE u.state = 'approved' ORDER BY u.id"))
-            await PostAsync(conn, channel, u, ct);
+            if ((IsPov(u) ? setupsChannel : updatesChannel) is { } target) await PostAsync(conn, target, u, ct);
 
         // updates waiting to be asked about, and those that had nobody to ask (tried again: an owner may be known now)
         var pending = (await conn.QueryAsync<TableUpdateRow>($"""
@@ -71,10 +74,12 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             WHERE u.state = 'pending' OR (u.state = 'undeliverable' AND u.owner_user_id IS NULL AND u.detected_at_utc >= @old)
             ORDER BY u.id
             """, new { old = now - AnswerWithin })).ToList();
-        foreach (var group in pending.GroupBy(u => u.CabinetId))
+        // one question per cabinet for its tables, and a separate one for its POVs (each has its own member setting)
+        foreach (var group in pending.GroupBy(u => (u.CabinetId, Pov: IsPov(u))))
         {
             if (group.Max(u => DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc)) > now - Settle) continue; // more may follow
-            var cabinet = group.Key;
+            if ((group.Key.Pov ? setupsChannel : updatesChannel) is not { } channel) continue; // nowhere to post these yet
+            var cabinet = group.Key.CabinetId;
             var ids = group.Select(u => u.Id).ToArray();
             // the member who paired it; for a cabinet paired before PinBot recorded that, the one with the most scores on it
             var owner = await conn.ExecuteScalarAsync<string?>($"SELECT {Players.OwnerOf("c")} FROM cabinet c WHERE c.id = @cabinet", new { cabinet });
@@ -88,7 +93,8 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             }
             await conn.ExecuteAsync("UPDATE table_update SET owner_user_id = @owner, state = 'pending' WHERE id = ANY(@ids)", new { owner, ids });
             var batch = group.Select(u => u with { OwnerUserId = owner, State = "pending" }).ToList();
-            var pref = await conn.ExecuteScalarAsync<string?>("SELECT share_updates FROM member_pref WHERE discord_user_id = @owner", new { owner }) ?? "ask";
+            var pref = await conn.ExecuteScalarAsync<string?>(
+                $"SELECT {(group.Key.Pov ? "share_povs" : "share_updates")} FROM member_pref WHERE discord_user_id = @owner", new { owner }) ?? "ask";
             log.LogInformation("table updates on cabinet {Cabinet} ({Count}): member {Owner} shares {Pref}", cabinet, batch.Count, owner, pref);
             if (pref == "never") { await SetStateAsync(conn, ids, "skipped", now); continue; }
             if (pref == "always")
@@ -98,6 +104,15 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             }
             if (!await AskAsync(conn, owner, channel, batch, now, ct)) return; // Discord trouble: next pass
         }
+    }
+
+    static bool IsPov(TableUpdateRow u) => u.Kind == "pov";
+
+    /// <summary>Where table updates go, and where POVs go (the setups channel, else the updates channel). Null: not set.</summary>
+    static async Task<(string? Updates, string? Setups)> ChannelsAsync(NpgsqlConnection conn)
+    {
+        var updates = await Settings.GetAsync(conn, Settings.UpdatesChannel);
+        return (updates, await Settings.GetAsync(conn, Settings.SetupsChannel) ?? updates);
     }
 
     /// <summary>One DM for a cabinet's batch. False when Discord failed in a way worth trying again later.</summary>
@@ -142,7 +157,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         {
             // VPS only adds links: without a catalog (VPS unreachable, turned off, never loaded) the post goes out without them
             var match = Resolve(vps?.Current, u);
-            var message = await api.PostMessageAsync(channel, Post(u, match), ct);
+            var message = await api.PostMessageAsync(channel, Render(u, match), ct);
             await conn.ExecuteAsync("""
                 UPDATE table_update SET state = 'shared', post_channel_id = @channel, post_message_id = @message, decided_at_utc = @now,
                                         vps_game_id = @game, vps_table_id = @table, vps_b2s_id = @b2s
@@ -208,7 +223,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
             var match = Resolve(vps?.Current, u);
             try
             {
-                await api.EditMessageAsync(u.PostChannelId!, u.PostMessageId!, Post(u, match), ct);
+                await api.EditMessageAsync(u.PostChannelId!, u.PostMessageId!, Render(u, match), ct);
                 await conn.ExecuteAsync("""
                     UPDATE table_update SET post_refresh = false, vps_game_id = @game, vps_table_id = @table, vps_b2s_id = @b2s WHERE id = @Id
                     """, new { u.Id, game = match?.Game.Id, table = match?.Table?.Id ?? u.VpsTableId, b2s = match?.Backglass?.Id ?? u.VpsB2sId });
@@ -229,9 +244,9 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
     /// <summary>The question, closed: what became of each table, and no buttons.</summary>
     public static JsonObject Closed(string cabinet, IReadOnlyList<TableUpdateRow> rows)
     {
-        var sb = new StringBuilder($"🔄 PinBot noticed {(rows.Count == 1 ? "a table change" : $"{rows.Count} table changes")} on **{Interactions.Md(cabinet)}**:\n");
+        var sb = new StringBuilder($"🔄 PinBot noticed {Noticed(rows)} on **{Interactions.Md(cabinet)}**:\n");
         foreach (var u in rows.Take(MaxPerQuestion))
-            sb.Append($"• ~~**{Title(u)}**: {(u.Kind == "added" ? "new" : "updated")}{(Change(u) is { Length: > 0 } c ? $", {c}" : "")}~~ {ClosedText(u.State)}\n");
+            sb.Append($"• ~~**{Title(u)}**: {KindText(u)}{(Change(u) is { Length: > 0 } c ? $", {c}" : "")}~~ {ClosedText(u.State)}\n");
         if (rows.Count > MaxPerQuestion) sb.Append($"• …and {rows.Count - MaxPerQuestion} more\n");
         sb.Append("Nothing was shared, and this question is closed.");
         return new JsonObject
@@ -267,22 +282,24 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         if (ids.Length == 0) return null;
         // the answer redraws the message: never edited again when its other tables are closed later
         await conn.ExecuteAsync("UPDATE table_update SET dm_closed_at_utc = @now WHERE dm_message_id = @messageId", new { now, messageId });
-        var channel = await Settings.GetAsync(conn, Settings.UpdatesChannel);
+        var povs = await conn.ExecuteScalarAsync<bool>("SELECT bool_and(kind = 'pov') FROM table_update WHERE id = ANY(@ids)", new { ids });
+        var channel = povs ? (await ChannelsAsync(conn)).Setups : await Settings.GetAsync(conn, Settings.UpdatesChannel);
         var where = channel is null ? "the updates channel" : $"<#{channel}>";
+        var setting = povs ? "POVs are" : "table updates are";
         switch (customId)
         {
             case Share:
                 await conn.ExecuteAsync("UPDATE table_update SET state = 'approved', decided_at_utc = @now WHERE id = ANY(@ids)", new { now, ids });
                 return $"✅ Shared in {where}.";
             case Always:
-                await SetPrefAsync(conn, userId, "always");
+                await SetPrefAsync(conn, userId, "always", povs);
                 await conn.ExecuteAsync("UPDATE table_update SET state = 'approved', decided_at_utc = @now WHERE id = ANY(@ids)", new { now, ids });
-                return $"✅ Shared in {where}. From now on your table updates are shared automatically (change it with `/pinbot updates`).";
+                return $"✅ Shared in {where}. From now on your {setting} shared automatically (change it with `/pinbot updates`).";
             case Skip:
                 await SetStateAsync(conn, ids, "skipped", now);
                 return "👍 Not shared.";
             case Never:
-                await SetPrefAsync(conn, userId, "never");
+                await SetPrefAsync(conn, userId, "never", povs);
                 await SetStateAsync(conn, ids, "skipped", now);
                 return "👍 Not shared, and PinBot won't ask again (change it with `/pinbot updates`).";
             default:
@@ -316,7 +333,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
                 """, new { c.Id })).ToList();
             if (recent.Count == 0) sb.Append(" No new table or version noticed since then. (Putting back the same version counts as no change.)");
             foreach (var u in recent)
-                sb.Append($"\n• **{Title(u)}** {(u.Kind == "added" ? "new" : "updated")}{(Change(u) is { Length: > 0 } ch ? $", {ch}" : "")}, " +
+                sb.Append($"\n• **{Title(u)}** {KindText(u)}{(Change(u) is { Length: > 0 } ch ? $", {ch}" : "")}, " +
                           $"{Interactions.Ts(DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc), "R")}: {StateText(u.State)}");
         }
         return sb.ToString();
@@ -383,7 +400,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
 
     static async Task<(string Cabinet, string Channel)> WhereAsync(NpgsqlConnection conn, TableUpdateRow u) =>
         (await conn.ExecuteScalarAsync<string?>("SELECT name FROM cabinet WHERE id = @CabinetId", new { u.CabinetId }) ?? "your VPin",
-         await Settings.GetAsync(conn, Settings.UpdatesChannel) ?? "0");
+         (IsPov(u) ? (await ChannelsAsync(conn)).Setups : await Settings.GetAsync(conn, Settings.UpdatesChannel)) ?? "0");
 
     /// <summary>The picked value if it is an entry of the matched game (or "not on VPS", stored as ""); null if not.</summary>
     static string? Chosen(Vps.VpsMatch auto, bool isTable, string value)
@@ -421,7 +438,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         foreach (var u in posts)
             options.Add(new JsonObject
             {
-                ["label"] = Trim($"{u.Name ?? u.TableName}{(u.Version is { } v ? $" · v{v}" : "")}", 100),
+                ["label"] = Trim($"{(IsPov(u) ? "POV · " : "")}{u.Name ?? u.TableName}{(u.Version is { } v ? $" · v{v}" : "")}", 100),
                 ["description"] = $"shared {DateTime.SpecifyKind(u.DetectedAtUtc, DateTimeKind.Utc):d MMM yyyy}",
                 ["value"] = u.Id.ToString(),
             });
@@ -465,7 +482,7 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         string note;
         try
         {
-            await api.EditMessageAsync(u.PostChannelId!, u.PostMessageId!, Post(u, m), ct);
+            await api.EditMessageAsync(u.PostChannelId!, u.PostMessageId!, Render(u, m), ct);
             note = "✅ Post updated. ";
             log.LogInformation("member {Owner} fixed the VPS links of table update {Id}", userId, u.Id);
         }
@@ -506,15 +523,35 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         };
     }
 
-    public static Task SetPrefAsync(NpgsqlConnection conn, string userId, string pref) =>
-        conn.ExecuteAsync("""
-            INSERT INTO member_pref (discord_user_id, share_updates) VALUES (@userId, @pref)
-            ON CONFLICT (discord_user_id) DO UPDATE SET share_updates = EXCLUDED.share_updates
+    /// <summary>The member's setting for table updates, or (<paramref name="povs"/>) for POVs.</summary>
+    public static Task SetPrefAsync(NpgsqlConnection conn, string userId, string pref, bool povs = false)
+    {
+        var column = povs ? "share_povs" : "share_updates";
+        return conn.ExecuteAsync($"""
+            INSERT INTO member_pref (discord_user_id, {column}) VALUES (@userId, @pref)
+            ON CONFLICT (discord_user_id) DO UPDATE SET {column} = EXCLUDED.{column}
             """, new { userId, pref });
+    }
 
     // ---------------- messages ----------------
 
     static string Title(TableUpdateRow u) => Interactions.Md(u.Name ?? u.TableName);
+
+    /// <summary>"a table change", "3 table changes", "a POV change"…</summary>
+    static string Noticed(IReadOnlyList<TableUpdateRow> rows)
+    {
+        var what = rows.All(IsPov) ? "POV" : "table";
+        return rows.Count == 1 ? $"a {what} change" : $"{rows.Count} {what} changes";
+    }
+
+    internal static string KindText(TableUpdateRow u) => u.Kind switch
+    {
+        "added" => "new",
+        "pov" => $"{ModeName(u.PovMode)} POV changed",
+        _ => "updated",
+    };
+
+    static string ModeName(string? mode) => mode switch { "cabinet" => "cabinet", "fss" => "FSS (full single screen)", "desktop" => "desktop", _ => "" };
 
     /// <summary>"2.0 → 2.4.1", "version 2.4.1", or "" when the table states no version.</summary>
     internal static string Change(TableUpdateRow u) =>
@@ -528,10 +565,10 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
     public static JsonObject Question(string cabinet, string channel, IReadOnlyList<TableUpdateRow> batch, Vps.VpsIndex? index = null,
         bool showPicks = false, long? focus = null)
     {
-        var sb = new StringBuilder($"🔄 PinBot noticed {(batch.Count == 1 ? "a table change" : $"{batch.Count} table changes")} on **{Interactions.Md(cabinet)}**:\n");
+        var sb = new StringBuilder($"🔄 PinBot noticed {Noticed(batch)} on **{Interactions.Md(cabinet)}**:\n");
         foreach (var u in batch.Take(MaxPerQuestion))
         {
-            sb.Append($"• **{Title(u)}**: {(u.Kind == "added" ? "new" : "updated")}{(Change(u) is { Length: > 0 } c ? $", {c}" : "")}\n");
+            sb.Append($"• **{Title(u)}**: {KindText(u)}{(Change(u) is { Length: > 0 } c ? $", {c}" : "")}\n");
             if (index is null) continue;
             if (Resolve(index, u) is not { } m) { sb.Append("  ↳ not found on VPS: shared without links\n"); continue; }
             sb.Append($"  ↳ Table: {Identified(m.Table, u.VpsTableId)}\n");
@@ -639,6 +676,51 @@ public sealed class TableUpdatePublisher(Db db, IDiscordApi api, TimeProvider cl
         static Vps.VpsFile? Pick(string? chosen, Vps.VpsFile? auto, IReadOnlyList<Vps.VpsFile> all) =>
             chosen is null ? auto : chosen == "" ? null : all.FirstOrDefault(f => f.Id == chosen) ?? auto;
         return m with { Table = Pick(u.VpsTableId, m.Table, m.Game.Tables), Backglass = Pick(u.VpsB2sId, m.Backglass, m.Game.Backglasses) };
+    }
+
+    /// <summary>The post for an update: a POV's, or a table's.</summary>
+    public static JsonObject Render(TableUpdateRow u, Vps.VpsMatch? m) => IsPov(u) ? PovPost(u, m) : Post(u, m);
+
+    /// <summary>
+    /// A shared POV: who, which table entry and version (linked as in update posts), for which view mode, and its view
+    /// settings to paste into the table's .ini. Only View… keys with numbers (checked when stored) are ever in it.
+    /// </summary>
+    public static JsonObject PovPost(TableUpdateRow u, Vps.VpsMatch? m = null)
+    {
+        var who = u.OwnerUserId is { } id && id.All(char.IsAsciiDigit) ? $"<@{id}>" : "A member";
+        var mode = ModeName(u.PovMode);
+        var version = u.Version is { } v ? $"v{Interactions.Md(v)}" : "version not stated";
+        var table = m?.Table is { } t
+            ? $"🎰 Table: {LinkOr($"{version}{By(t.Authors)}", t.Url ?? m.Game.TablePageUrl(t))} · VPS `{Code(t.Id)}`"
+            : $"🎰 Table: {version} · file `{Code(u.TableName)}`{(m is null ? "" : " · not identified on VPS")}";
+        var embed = new JsonObject
+        {
+            ["title"] = Trim(m?.Game.Title ?? u.Name ?? u.TableName, 256),
+            ["description"] = Trim($"{who} shared a **{mode}** POV for this table\n{table}\n" +
+                                   $"To use it on a VPin in {mode} mode: paste the lines below into the table's `.ini` " +
+                                   "(next to the `.vpx`, same name) under `[TableOverride]`, replacing the lines with the same names.", 4000),
+            ["color"] = 0x3498DB,
+        };
+        if (m is not null)
+        {
+            embed["url"] = m.Table is { } mt ? m.Game.TablePageUrl(mt) : m.Game.PageUrl;
+            embed["footer"] = new JsonObject { ["text"] = "Table links go to the authors' own pages · matched with the Virtual Pinball Spreadsheet" };
+        }
+        return new JsonObject
+        {
+            ["content"] = PovBlock(u.Pov),
+            ["allowed_mentions"] = new JsonObject { ["parse"] = new JsonArray() }, // shows the member's name, never pings
+            ["embeds"] = new JsonArray(embed),
+        };
+    }
+
+    /// <summary>The view settings as an ini code block that fits a Discord message: whole lines only, never a cut-off block.</summary>
+    static string PovBlock(string? pov)
+    {
+        var lines = (pov ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+        string Block() => $"```ini\n[TableOverride]\n{string.Join("\n", lines)}\n```";
+        while (lines.Count > 0 && Block().Length > 1900) lines.RemoveAt(lines.Count - 1);
+        return Block();
     }
 
     /// <summary>

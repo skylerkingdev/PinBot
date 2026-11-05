@@ -138,11 +138,12 @@ Two new channel settings next to the existing challenges, weekly and info channe
 | Setting                                  | Channel type   | What goes there                                   | When       |
 |------------------------------------------|----------------|---------------------------------------------------|------------|
 | `/pinbot-admin channels updates:#…`      | text           | update posts ("Skyler updated 24 → 2.4.1")        | steps 1–5  |
-| `/pinbot-admin channels setups:#…`       | **forum**      | one thread per game: POVs, settings, script fixes | later phase |
+| `/pinbot-admin channels setups:#…`       | text           | shared POVs (later: script fixes)                 | POV phase A |
 
-- **Unset means off.** No updates channel means no update DMs or posts. No setups forum means no sharing of POVs or
-  fixes.
-- **Why a forum for setups:** fixes and POVs are reference material people come back to. A forum gives each game one
+- **Unset means off.** No updates channel means no update DMs or posts. Without a setups channel, POVs go to the
+  updates channel; with neither, nothing is shared.
+- **Later, a forum:** the setups setting can become a forum with one thread per game. Until then it's a text channel.
+- **Why a forum for setups (later):** fixes and POVs are reference material people come back to. A forum gives each game one
   thread (created by PinBot the first time something is shared for it) that holds every fix, POV and settings file
   for that game, plus the discussion. Discord's own **Follow** on a thread notifies interested members, and forum
   tags mark POV, Settings, Script fix and Approved. PinBot's DM install offer still goes to every member whose cab it
@@ -241,9 +242,33 @@ Not part of steps 1–5. A separate design once table updates are in use. Same g
 It builds on step 4–5's exact identification of each member's table file. Everything shared here lives in the setups
 forum, one thread per game (see [Channels](#channels)).
 
-### POVs and table settings (`.pov`, table `.ini`): opt-in sync
+### POVs, phase A: sharing, the same way as table updates (built)
 
-- A member posts a POV or settings file for a specific table entry, and others **subscribe** ("Skyler's POV for
+A POV is shared exactly like a table update: the VPin notices it, the member is asked in a DM, and only what they share
+is posted. Status: built, not yet tested on a real VPin; the VPX setting names below need checking against real files.
+
+- **What a POV is here:** VPX 10.8 keeps a table's view in the table's own `.ini` (next to the `.vpx`), section
+  `[TableOverride]`, one set of `View…` keys per view mode: desktop (`ViewDT…`), cabinet (`ViewCab…`) and full single
+  screen (`ViewFSS…`). The same file can also hold the member's other table options; only view keys are ever read.
+- **Desktop vs cabinet:** a VPin runs in one mode (`BGSet` under `[Player]` in VPinballX.ini: 0 desktop, 1 cabinet,
+  2 FSS). The agent reads only that mode's view keys, and the post says which mode the POV is for. A cabinet POV is
+  never offered as a desktop one, and a VPin switching mode is not announced as a POV change.
+- **Noticed:** the agent reads the view keys of each table's `.ini` (watching `.ini` files like `.directb2s` ones) and
+  sends them with the table list: numbers only, at most 64 keys. A change with the same table version is a `pov` update.
+  A new table or version is a table update instead (its POV comes with it). A POV changed again before the member
+  answers replaces the earlier one. A POV change never replaces a table update.
+- **Asked:** the same DM, settle time, buttons, 7-day expiry and closing. A POV DM is separate from a table DM, and
+  POVs have their own setting, `/pinbot updates povs:<ask|always|never>`, so someone who always shares tables isn't
+  posting every camera tweak.
+- **Posted** in the setups channel, or the updates channel when unset: "Skyler shared a **cabinet** POV for this
+  table", with the table version and its VPS entry (as in update posts), and the view keys as a code block to paste
+  under `[TableOverride]` in the table's `.ini`. The `[Player]` section (screen size, player position: this VPin's own
+  setup) is never sent.
+- **Not yet:** the sharer's screen size and orientation in the post, and a legacy `.pov` file next to a table.
+
+### POVs, phase B: installing a shared POV (design)
+
+- A member presses "Use this POV" on a post, or **subscribes** to a member's POVs ("Skyler's POV for
   Transformers 2.4.1, `uyJ5RDRCu6`").
 - The agent applies it **only when the subscriber's table is the same entry** (the same confirmed or matched VPS ID, and
   the same table version string from the .vpx). Otherwise it reports "made for a different version" and does nothing.

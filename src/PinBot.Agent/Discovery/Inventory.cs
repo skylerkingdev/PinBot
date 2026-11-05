@@ -19,7 +19,8 @@ public sealed record TableInfo(
     TableMeta? Meta = null,
     BackglassInfo? Backglass = null,
     bool AltColor = false,
-    bool AltSound = false)
+    bool AltSound = false,
+    PovInfo? Pov = null)
 {
     /// <summary>
     /// Could take part in a competition: a decoder for this exact revision, and evidence the ROM really writes this file:
@@ -82,8 +83,10 @@ public static class Inventory
         else if (scriptRoms.Count == 1) { rom = scriptRoms[0]; romSource = RomSource.Script; }
         else if (scriptRoms.Count > 1) romSource = RomSource.Ambiguous;
 
+        // the table's view for this VPin's mode: a small .ini, read every time (not cached)
+        var pov = Discovery.Pov.Read(vpxPath, inst.ViewMode);
         if (rom == null)
-            return new(vpxPath, null, romSource, scriptRoms, source, null, NvState.NoNvramFolder, [], false, null, facts.Meta, facts.Backglass);
+            return new(vpxPath, null, romSource, scriptRoms, source, null, NvState.NoNvramFolder, [], false, null, facts.Meta, facts.Backglass, Pov: pov);
 
         if (seen != null)
         {
@@ -100,7 +103,7 @@ public static class Inventory
         else if (map?.CompetitionBlocker is { } blocker) why = blocker;
         bool supported = map is { HasInitials: true, CompetitionBlocker: null };
         var (altColor, altSound) = Extras(rom, vpxPath, inst);
-        return new(vpxPath, rom, romSource, scriptRoms, source, nvPath, nvState, candidates, supported, why, facts.Meta, facts.Backglass, altColor, altSound);
+        return new(vpxPath, rom, romSource, scriptRoms, source, nvPath, nvState, candidates, supported, why, facts.Meta, facts.Backglass, altColor, altSound, pov);
     }
 
     /// <summary>

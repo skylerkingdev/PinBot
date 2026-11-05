@@ -392,6 +392,62 @@ public class TableUpdateFlowTests
         Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE vps_table_id = 'TF2' AND vps_game_id = 'GTF'"));
     }
 
+    static TableFile WithPov(TableFile f, string? pov, string mode = "cabinet") => f with { PovMode = mode, Pov = pov };
+
+    [Fact]
+    public async Task A_changed_pov_is_asked_about_on_its_own_and_posted_in_the_setups_channel()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        var publisher = s.Service<TableUpdatePublisher>();
+        await AskAsync(s, Command("channels", [Opt("setups", "chanS")], permissions: Manager, command: "pinbot-admin"));
+        await ReportAsync(cab, WithPov(File24("2.0"), null)); // an agent that now sends its view mode: nothing to say
+        Assert.Equal(0, await s.CountAsync("SELECT count(*) FROM table_update"));
+
+        // the view keys only, as numbers: anything else in what a VPin sends is dropped
+        await ReportAsync(cab, WithPov(File24("2.0"), "ViewCabFOV = 45\nViewCabMode = 2\nDifficulty = 3\nViewCabX = ```@everyone\nViewDTFOV = 50"));
+        s.Clock.Advance(TimeSpan.FromMinutes(3));
+        await publisher.RunOnceAsync(default);
+        var (dmId, dm) = Assert.Single(In(s, "dm-" + Owner));
+        Assert.Contains("a POV change", dm["content"]!.GetValue<string>());
+        Assert.Contains("**24 (Stern 2009)**: cabinet POV changed, version **2.0**", dm["content"]!.GetValue<string>());
+        Assert.Contains("Share it in <#chanS>", dm["content"]!.GetValue<string>());
+
+        Assert.Contains("POVs are shared automatically", await PressAsync(s, DmPress(TableUpdatePublisher.Always, dmId)));
+        Assert.Equal(1, await s.CountAsync($"SELECT count(*) FROM member_pref WHERE discord_user_id = '{Owner}' AND share_povs = 'always' AND share_updates = 'ask'"));
+        await publisher.RunOnceAsync(default);
+        var post = Assert.Single(In(s, "chanS")).Message;
+        Assert.Equal("```ini\n[TableOverride]\nViewCabFOV = 45\nViewCabMode = 2\n```", post["content"]!.GetValue<string>());
+        Assert.Contains($"<@{Owner}> shared a **cabinet** POV for this table", post["embeds"]![0]!["description"]!.GetValue<string>());
+        Assert.Empty(In(s, "chanU"));
+
+        var settings = (await AskAsync(s, Command("updates", userId: Owner)))["content"]!.GetValue<string>();
+        Assert.Contains("Your POVs are **always shared**", settings);
+        Assert.Contains("cabinet POV changed", settings);
+    }
+
+    [Fact]
+    public async Task A_pov_change_never_replaces_a_table_update_and_a_mode_switch_is_silent()
+    {
+        var (s, cab) = await SetupAsync();
+        await using var _ = s;
+        await ReportAsync(cab, WithPov(File24("2.0"), null));
+        await ReportAsync(cab, WithPov(File24("2.4.1"), "ViewCabFOV = 45")); // a new version: one table update
+        await ReportAsync(cab, WithPov(File24("2.4.1"), "ViewCabFOV = 50")); // then its view: a POV update beside it
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'updated'"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'pov'"));
+        await ReportAsync(cab, WithPov(File24("2.4.1"), "ViewCabFOV = 55")); // changed again: replaces the POV only
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'superseded' AND kind = 'pov'"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'pov' AND pov = 'ViewCabFOV = 55'"));
+
+        await ReportAsync(cab, WithPov(File24("2.4.1"), "ViewDTFOV = 50", mode: "desktop")); // the VPin switched to desktop
+        Assert.Equal(3, await s.CountAsync("SELECT count(*) FROM table_update"));
+
+        await ReportAsync(cab, WithPov(File24("2.5"), "ViewDTFOV = 50", mode: "desktop")); // a new version replaces both
+        Assert.Equal(0, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'pov'"));
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE state = 'pending' AND kind = 'updated' AND old_version = '2.0' AND version = '2.5'"));
+    }
+
     [Fact]
     public async Task A_table_read_while_being_copied_is_still_announced_as_new()
     {

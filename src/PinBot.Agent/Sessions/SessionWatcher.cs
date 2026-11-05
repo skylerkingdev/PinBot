@@ -507,6 +507,7 @@ public sealed partial class SessionWatcher(
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
                     InternalBufferSize = 8192,
                 };
+                // a file next to a table (backglass, settings): the table is read again when idle
                 void BackglassChanged(string path)
                 {
                     var vpx = Path.ChangeExtension(path, ".vpx");
@@ -518,6 +519,19 @@ public sealed partial class SessionWatcher(
                 b.Renamed += (_, e) => { BackglassChanged(e.OldFullPath); BackglassChanged(e.FullPath); };
                 b.EnableRaisingEvents = true;
                 watchers.Add(b);
+                // a table's .ini holds its view (POV): VPX writes it when a table's settings are saved
+                var p = new FileSystemWatcher(dir, "*.ini")
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+                    InternalBufferSize = 8192,
+                };
+                p.Created += (_, e) => BackglassChanged(e.FullPath);
+                p.Changed += (_, e) => BackglassChanged(e.FullPath);
+                p.Deleted += (_, e) => BackglassChanged(e.FullPath);
+                p.Renamed += (_, e) => { BackglassChanged(e.OldFullPath); BackglassChanged(e.FullPath); };
+                p.EnableRaisingEvents = true;
+                watchers.Add(p);
             }
             catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
             {
