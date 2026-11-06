@@ -49,7 +49,7 @@ public static class Interactions
             { "type": 1, "name": "end", "description": "End a competition early (one you started; managers: any)",
               "options": [ { "type": 4, "name": "competition", "description": "Which competition to end", "required": true, "autocomplete": true } ] },
             { "type": 1, "name": "pair", "description": "Connect your VPin: get pinbot.exe and a one-time pairing line" },
-            { "type": 1, "name": "updates", "description": "Whether PinBot shares the tables and POVs you change (leave empty to see)",
+            { "type": 1, "name": "updates", "description": "Whether PinBot shares the tables, POVs and script fixes you change (leave empty to see)",
               "options": [
                 { "type": 3, "name": "share", "description": "When to share tables you install or update", "required": false,
                   "choices": [ { "name": "Ask me each time", "value": "ask" }, { "name": "Always share", "value": "always" },
@@ -73,7 +73,7 @@ public static class Interactions
                 { "type": 7, "name": "weekly", "description": "Channel for weekly competition leaderboards", "required": false, "channel_types": [0] },
                 { "type": 7, "name": "info", "description": "Channel for the guide, new VPins and update news", "required": false, "channel_types": [0] },
                 { "type": 7, "name": "updates", "description": "Channel for members' table updates (off until set)", "required": false, "channel_types": [0] },
-                { "type": 7, "name": "setups", "description": "Channel for shared POVs (default: the updates channel)", "required": false, "channel_types": [0] } ] },
+                { "type": 7, "name": "setups", "description": "Channel for shared POVs and script fixes (default: the updates channel)", "required": false, "channel_types": [0] } ] },
             { "type": 1, "name": "weekly", "description": "Automatic weekly competition: on/off and when it starts",
               "options": [
                 { "type": 5, "name": "enabled", "description": "On or off", "required": true },
@@ -507,7 +507,7 @@ public static class Interactions
     static async Task<IResult> HelpAsync(NpgsqlConnection conn, DiscordOptions discord)
     {
         var weekly = await WeeklyScheduler.ScheduleAsync(conn) is { } w && await Settings.GetAsync(conn, Settings.WeeklyEnabled) == "true" ? w : null;
-        var guide = InfoPublisher.Guide(discord, weekly);
+        var guide = InfoPublisher.Guide(discord, weekly, await Settings.GetAsync(conn, Settings.UpdatesChannel));
         guide["flags"] = Ephemeral;
         if (await Settings.GetAsync(conn, Settings.InfoChannel) is { } info) guide["content"] = $"Also pinned in <#{info}>.";
         return Json(new JsonObject { ["type"] = 4, ["data"] = guide });
@@ -546,7 +546,7 @@ public static class Interactions
                      $"• Weekly: {(discord.WeeklyChannelId is null ? $"{Show(discord.ChannelId)} (same as challenges)" : Show(discord.WeeklyChannelId))}\n" +
                      $"• Guide and new VPins: {Show(infoNow)}\n" +
                      $"• Table updates: {(updatesNow is null ? "not set (off)" : Show(updatesNow))}\n" +
-                     $"• Shared POVs: {(setupsNow is not null ? Show(setupsNow) : updatesNow is null ? "not set (off)" : $"{Show(updatesNow)} (same as table updates)")}\n" +
+                     $"• Shared POVs and fixes: {(setupsNow is not null ? Show(setupsNow) : updatesNow is null ? "not set (off)" : $"{Show(updatesNow)} (same as table updates)")}\n" +
                      "PinBot needs **Send Messages** and **Embed Links** in each, and **Pin Messages** in the competition channels.", ephemeral: true);
     }
 

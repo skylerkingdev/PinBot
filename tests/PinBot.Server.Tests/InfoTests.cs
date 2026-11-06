@@ -65,5 +65,14 @@ public class InfoTests
         Assert.True(IsEphemeral(help));
         Assert.Equal("Also pinned in <#chanI>.", help["content"]!.GetValue<string>());
         Assert.Equal("🎯 How PinBot works", help["embeds"]![0]!["title"]!.GetValue<string>());
+        Assert.DoesNotContain("Share your setup", FakeDiscord.Body(s.Discord.Messages[guideId].Message));
+
+        // sharing setups appears once an updates channel is set
+        await AskAsync(s, Command("channels", [Opt("updates", "chanU")], permissions: Manager, command: "pinbot-admin"));
+        await info.RunOnceAsync();
+        var body = FakeDiscord.Body(s.Discord.Messages[guideId].Message);
+        Assert.Contains("**Share your setup**", body);
+        Assert.Contains("tables in <#chanU>", body);
+        Assert.Contains("`/pinbot updates`", FakeDiscord.Body((await AskAsync(s, Command("help")))));
     }
 }

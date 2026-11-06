@@ -19,7 +19,7 @@ public static class Settings
     public const string WeeklyChannel = "weekly_channel";
     /// <summary>Where table updates are posted (docs/TABLE-UPDATES.md); unset: the feature is off.</summary>
     public const string UpdatesChannel = "updates_channel";
-    /// <summary>Where shared POVs are posted; unset: the updates channel.</summary>
+    /// <summary>Where shared POVs and script fixes are posted; unset: the updates channel.</summary>
     public const string SetupsChannel = "setups_channel";
     /// <summary>The guide message PinBot keeps in the info channel: "channel/message", and the hash of its content.</summary>
     public const string InfoGuideMessage = "info_guide_message";

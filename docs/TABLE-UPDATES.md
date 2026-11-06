@@ -1,7 +1,8 @@
 # Table updates
 
-Status (2026-11-04): build steps 1–5 are implemented (see [Build order](#build-order)). The later phase is design
-only.
+Status (2026-11-06): build steps 1–5 are implemented (see [Build order](#build-order)), and so are shared POVs and
+script fixes from the later phase, each tested between two real VPins. Settings sync is still design only. For
+players: [SHARING.md](SHARING.md).
 
 When a member installs or updates a table on their VPin, PinBot can tell the community: who updated what, to which
 version, with links to where the table, backglass and ROM come from. Agreed 2026-11-04.
@@ -141,7 +142,7 @@ Two new channel settings next to the existing challenges, weekly and info channe
 | Setting                                  | Channel type   | What goes there                                   | When       |
 |------------------------------------------|----------------|---------------------------------------------------|------------|
 | `/pinbot-admin channels updates:#…`      | text           | update posts ("Skyler updated 24 → 2.4.1")        | steps 1–5  |
-| `/pinbot-admin channels setups:#…`       | text           | shared POVs (later: script fixes)                 | POV phase A |
+| `/pinbot-admin channels setups:#…`       | text           | shared POVs and script fixes                      | POV phase A |
 
 - **Unset means off.** No updates channel means no update DMs or posts. Without a setups channel, POVs go to the
   updates channel; with neither, nothing is shared.
@@ -241,9 +242,9 @@ script fixes come after, as a [later phase](#later-phase-shared-povs-settings-an
 
 ## Later phase: shared POVs, settings and script fixes
 
-Not part of steps 1–5. A separate design once table updates are in use. Same goal: help everyone run the same setup.
-It builds on step 4–5's exact identification of each member's table file. Everything shared here lives in the setups
-forum, one thread per game (see [Channels](#channels)).
+Not part of steps 1–5. POVs and script fixes are built; settings sync is design only. Same goal: help everyone run the same setup.
+It builds on step 4–5's exact identification of each member's table file. Everything shared here is posted in the setups
+channel (later perhaps a forum, one thread per game; see [Channels](#channels)).
 
 ### POVs, phase A: sharing, the same way as table updates (built)
 
@@ -279,7 +280,7 @@ is posted. Status: built, and tested on a real VPin (2026-11-04: X-Files, cabine
 
 ### POVs, phase B: installing a shared POV (built)
 
-Status: built, not yet tested on two real VPins.
+Status: built, and tested between two real VPins (2026-11-05: a friend installed a shared POV).
 
 1. **"Use this POV"** is a button on every POV post. Pressing it answers privately (only the clicker sees it), after
    checking each of their VPins: the same game (the table's own name, or its ROM), the **same table version**, and the
@@ -310,7 +311,8 @@ Status: built, not yet tested on two real VPins.
 
 ### Script fixes (`.vbs`): shared like POVs, installed only on the member's accept (built)
 
-Status: built, not yet tested on real VPins. Same flow as POVs (DM, post, "Use this fix", install queue, DM with Undo).
+Status: built, and tested between two real VPins (2026-11-06: 24's fast-flips fix shared from one and installed on
+a friend's). Same flow as POVs (DM, post, "Use this fix", install queue, DM with Undo).
 
 **A `.vbs` is a program.** VPX runs it with the user's full rights (files, shell, network). So PinBot never pushes a
 script silently or to everyone: each member sees the whole change and installs it with a click, within these limits.

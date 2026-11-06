@@ -1,7 +1,7 @@
 # On your VPin
 
 For VPin owners: installing PinBot, what it does on your PC, its commands, and removing it. How competitions work in
-Discord: [PLAYING.md](PLAYING.md).
+Discord: [PLAYING.md](PLAYING.md). Sharing tables, views and fixes: [SHARING.md](SHARING.md).
 
 ## Install
 
@@ -19,6 +19,12 @@ PinBot installs itself in `%LOCALAPPDATA%\PinBot`, starts minimized, and starts 
 - When a competition starts, it prepares that game's high-score table the next time that table isn't running: your own
   table is backed up and verified, and the competition starts from a low score ladder. At the end your own table is put
   back exactly as it was. Details: [NVRAM-SAFETY.md](NVRAM-SAFETY.md).
+- It tells the server which tables you have: each table's name, version, ROM, backglass, the hash of its script, and
+  the view settings of the mode you play in. When a table's script changes and its version doesn't, it also sends the
+  changed lines (never the whole script). This is how PinBot offers to share your setup ([SHARING.md](SHARING.md));
+  only what you choose to share is posted.
+- When you press **Install** on a friend's shared POV or script fix, it installs it when no table is running, after
+  checking it again itself (see [Files it writes](#files-it-writes-for-a-shared-pov-or-fix)).
 - It updates itself from the PinBot server: signed releases only, and only when no table is running.
 - If it crashes it restarts itself. After 3 crashes within 10 minutes it stops trying until you next log in to Windows,
   and `pinbot report` collects what happened.
@@ -110,4 +116,24 @@ Everything lives in `%LOCALAPPDATA%\PinBot` (set `PINBOT_HOME` to use another fo
 - `sessions.jsonl`: one line per game PinBot watched
 - `state.json`: pairing, path overrides, and which ROM and NVRAM file each table uses
 - `diagnostics\`: files kept when a ROM rejected a competition table
+- `scripts\`: a compressed copy of each table's script, to work out the changed lines of a fix (unused ones are
+  dropped after 30 days)
+- `setup-backups\`: the `.ini` or `.vbs` each install replaced, so Undo can put it back
+- `fixes.json`: the script fixes installed on this VPin
 - `update\`, `crashes.txt`, `tables-cache.json`: PinBot's own bookkeeping
+
+### Files it writes for a shared POV or fix
+
+Only after you press **Install**, and only next to that one table:
+
+- **POV:** the table's `.ini` (VPX 10.8 table settings). Only the `View…` lines of your view mode under
+  `[TableOverride]` are replaced; every other line stays. Every line installed must be a view setting with a number,
+  or nothing is written.
+- **Script fix:** a `.vbs` with the table's name, which VPX runs instead of the script inside the `.vpx`. The `.vpx`
+  is never changed. It is written only if your script is exactly the one the fix was made from and the result is
+  exactly the shared script. A fix whose new lines start programs, open files, reach the network or change the
+  registry is refused, and none is installed during a competition on that game. An existing `.vbs` is copied to
+  `setup-backups\` first. When you install a new version of the table, PinBot renames its fix to `.vbs.pinbot-old` so
+  it doesn't override the new script.
+
+**Undo** in the direct message puts back exactly what was there before.

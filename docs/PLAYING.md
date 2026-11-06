@@ -1,6 +1,7 @@
 # How competitions work
 
-For players: what PinBot posts in Discord and which games count. To connect your own VPin, see [VPIN.md](VPIN.md).
+For players: what PinBot posts in Discord and which games count. To connect your own VPin, see [VPIN.md](VPIN.md);
+to share your tables, views and fixes, [SHARING.md](SHARING.md).
 
 ## Your initials
 

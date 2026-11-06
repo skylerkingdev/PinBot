@@ -68,6 +68,16 @@ with a channel of your own (make it read-only for members). PinBot keeps a pinne
 connected VPin, and says when PinBot was updated and what changed. Without an info channel there is no guide and no
 update news. Run `/pinbot-admin channels` without options any time to see where PinBot posts.
 
+Optionally, turn on [sharing setups](https://github.com/skylerkingdev/PinBot/blob/master/docs/SHARING.md): members'
+table installs and updates, views (POVs) and script fixes, each shared only if the member says yes in a direct message:
+
+```
+/pinbot-admin channels updates:#table-updates setups:#table-setups
+```
+
+`setups` (POVs and script fixes) is optional and defaults to the updates channel. Sharing is off until an updates
+channel is set. Members must allow direct messages from server members for PinBot to ask them.
+
 ## 6. Try it
 
 Type `/pinbot` and start a short challenge: `/pinbot start game:<type part of a name> length:1 hour`. Its leaderboard
@@ -79,7 +89,7 @@ Only server managers see `/pinbot-admin`; both replies are visible only to you.
 
 | Command | What it does |
 |---|---|
-| `/pinbot-admin channels [challenges] [weekly] [info]` | Where PinBot posts: challenge leaderboards, weekly leaderboards, and the info channel. Applies to new competitions at once and is kept across restarts; the channel ids in `.env` only seed a new server. Without options it shows the current channels. |
+| `/pinbot-admin channels [challenges] [weekly] [info] [updates] [setups]` | Where PinBot posts: challenge leaderboards, weekly leaderboards, the info channel, members' table updates (off until set), and shared POVs and script fixes (default: the updates channel). Applies to new competitions at once and is kept across restarts; the channel ids in `.env` only seed a new server. Without options it shows the current channels. |
 | `/pinbot-admin weekly enabled:<True/False> [day] [time] [timezone]` | The automatic weekly competition. The first time, give all three, e.g. `enabled:True day:Monday time:19:00 timezone:Eastern (US/Canada)`. Turning it on starts a weekly **right away**, running until the next slot (or the one after, if that is less than 2 days away); then a new game every week. A schedule change while one runs applies after it ends. |
 
 Server managers may also end any challenge (`/pinbot end`) and start more than 2 at a time.
@@ -92,3 +102,5 @@ Server managers may also end any challenge (`/pinbot end`) and start more than 2
   Nobody's initials can be read without it.
 - **No leaderboard message:** check `/pinbot-admin channels`, and that the bot can view and post in that channel.
 - **No update news or guide:** set the info channel (step 5).
+- **A member is never asked about their table updates:** check that an updates channel is set, and that the member
+  allows direct messages from server members (Discord: the server's name → **Privacy Settings**).

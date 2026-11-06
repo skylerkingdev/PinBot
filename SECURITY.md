@@ -14,7 +14,19 @@ Only the latest release is supported. VPins update themselves to it once their s
   built into the copy it already has ([SERVER.md](docs/SERVER.md#releases-and-vpin-auto-update)). Anything that gets a
   VPin to run unsigned code is critical.
 - **VPin files.** The agent changes NVRAM files only for a competition and puts the originals back
-  ([NVRAM-SAFETY.md](docs/NVRAM-SAFETY.md)). Anything that makes it write, delete or overwrite other files is critical.
+  ([NVRAM-SAFETY.md](docs/NVRAM-SAFETY.md)). The only other files it writes are a shared POV or script fix its owner
+  pressed **Install** for (below). Anything that makes it write, delete or overwrite other files is critical.
+- **Shared POVs and script fixes** ([SHARING.md](docs/SHARING.md)). A VPX script is a program that runs with the
+  player's rights, so a script fix is the one place a member's VPin runs code another member wrote. It is never
+  pushed: the member reads the changed lines in the post and installs it with a click. The VPin checks every install
+  itself and doesn't trust the server: a POV must be only `View…` settings with numbers; a fix must apply to exactly
+  the script it was made from and produce exactly the shared one (SHA-256), and its added lines may not create
+  objects, run programs, or touch files, the registry or the network. It is written as a `.vbs` beside the table (the
+  `.vpx` is never changed), never during a competition on that game, with the previous file kept for Undo. That word
+  check is a safety net, not a sandbox: a fix that gets a script to do harm without those words would get past it,
+  which is why the member reads it first. Anyone on the Discord server can share a fix; limiting that to a role is
+  planned. Anything that gets a fix installed without its owner's click, on a different script, or outside the
+  table's own `.vbs` is critical.
 - **Server endpoints.** Discord interactions must carry a valid Ed25519 signature; VPin calls need the credential
   issued at pairing; pairing codes are single use, short-lived and rate-limited per client. The optional admin API is
   off unless `PINBOT_ADMIN_TOKEN` is set, needs that token, and is never forwarded by the public address.

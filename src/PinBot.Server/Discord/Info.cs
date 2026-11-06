@@ -45,7 +45,8 @@ public sealed class InfoPublisher(Db db, IDiscordApi api, DiscordOptions discord
 
     async Task PublishGuideAsync(NpgsqlConnection conn, string channel, CancellationToken ct)
     {
-        var guide = Guide(discord, await WeeklyScheduler.ScheduleAsync(conn) is { } w && await Settings.GetAsync(conn, Settings.WeeklyEnabled) == "true" ? w : null);
+        var guide = Guide(discord, await WeeklyScheduler.ScheduleAsync(conn) is { } w && await Settings.GetAsync(conn, Settings.WeeklyEnabled) == "true" ? w : null,
+            await Settings.GetAsync(conn, Settings.UpdatesChannel));
         var hash = Security.Sha256(guide.ToJsonString());
         var where = await Settings.GetAsync(conn, Settings.InfoGuideMessage);
         var stored = where?.Split('/') is [var ch, var existing] && ch == channel ? existing : null; // moved channel: post anew
@@ -127,7 +128,7 @@ public sealed class InfoPublisher(Db db, IDiscordApi api, DiscordOptions discord
     }
 
     /// <summary>The player guide: posted in the info channel, and the answer to /pinbot help.</summary>
-    public static JsonObject Guide(DiscordOptions discord, WeeklySchedule? weekly)
+    public static JsonObject Guide(DiscordOptions discord, WeeklySchedule? weekly, string? updatesChannel = null)
     {
         string Ch(string? id, string fallback) => id is null ? fallback : $"<#{id}>";
         var weeklyLine = weekly is null
@@ -151,6 +152,13 @@ public sealed class InfoPublisher(Db db, IDiscordApi api, DiscordOptions discord
             • `/pinbot pair` (only you see the reply): download **pinbot.exe**, double-click it, paste the line. It runs by itself from then on.
             • Your own high scores are backed up before a competition and put back after it.
             • PinBot and every connected VPin update themselves; this channel says when, and what changed.
+            {(updatesChannel is null ? "" : $"""
+
+            **Share your setup**
+            • Install a table, change its view (POV) or fix its script, and PinBot asks you in a DM whether to share it (tables in <#{updatesChannel}>), with the exact VPS links.
+            • **Use this POV** / **Use this fix** under a post installs it on your VPin if it has exactly that table, with an **Undo**. Read a fix before you install it: a script runs on your PC.
+            • `/pinbot updates`: share always, never, or ask me (tables, POVs and fixes separately).
+            """)}
             """;
         return new JsonObject
         {

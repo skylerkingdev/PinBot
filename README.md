@@ -9,6 +9,9 @@ PinBot reads the high scores from the game itself and matches your initials to y
 - **Scores:** read from the game after each play. No screenshots, no forms.
 - **Setup:** paste one line on the VPin. PinBot finds Visual Pinball X and your tables by itself.
 - **Updates:** the PinBot server and every VPin install new signed releases by themselves. Nothing to maintain.
+- **Share your setup:** install a table, set its view or fix its script, and PinBot offers to share it with the exact
+  VPS links. Friends install a shared view or fix on their own VPin with one button, and can undo it
+  ([how](docs/SHARING.md)).
 
 Your own high scores are backed up before a competition and put back exactly as they were after it
 ([how](docs/NVRAM-SAFETY.md)). PinBot uses about 20 MB of memory and sleeps while a table runs.
@@ -27,7 +30,8 @@ Your own high scores are backed up before a competition and put back exactly as 
 4. Put your initials in your server nickname, e.g. `Name | [ABC]`, and enter them on the machine when you get a high
    score.
 
-More: [On your VPin](docs/VPIN.md) (troubleshooting, uninstalling) and [How competitions work](docs/PLAYING.md).
+More: [On your VPin](docs/VPIN.md) (troubleshooting, uninstalling), [How competitions work](docs/PLAYING.md) and
+[Sharing your setup](docs/SHARING.md).
 
 ## Set up PinBot for your Discord server (admins)
 
@@ -56,6 +60,7 @@ About 45 minutes, once:
 | `/pinbot end` | End a challenge you started |
 | `/pinbot guest` | Let a friend without Discord score with their own initials for 24 hours |
 | `/pinbot pair` | Connect your VPin |
+| `/pinbot updates` | Whether PinBot shares the tables, views (POVs) and script fixes you change |
 | `/pinbot help` | How PinBot works |
 | `/pinbot-admin weekly` | Server managers: the automatic weekly competition |
 | `/pinbot-admin channels` | Server managers: where PinBot posts |
@@ -63,11 +68,11 @@ About 45 minutes, once:
 ## Documentation
 
 - **Players:** [On your VPin](docs/VPIN.md), [How competitions work](docs/PLAYING.md),
-  [How your high scores are kept safe](docs/NVRAM-SAFETY.md)
+  [Sharing your setup](docs/SHARING.md), [How your high scores are kept safe](docs/NVRAM-SAFETY.md)
 - **Admins:** [Run the PinBot server](docs/DEPLOY-NAS.md), [Connect it to Discord](docs/DISCORD-SETUP.md),
   [Security](SECURITY.md)
 - **Developers:** [Development](docs/DEVELOPMENT.md), [Server reference](docs/SERVER.md),
-  [How releases are signed](docs/CODE-SIGNING.md)
+  [How releases are signed](docs/CODE-SIGNING.md), [Table updates design](docs/TABLE-UPDATES.md)
 
 ## Release signing
 
