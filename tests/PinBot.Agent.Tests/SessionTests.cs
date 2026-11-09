@@ -112,7 +112,9 @@ public class SessionTests
     public async Task Quiet_folder_is_stable_quickly()
     {
         var (dir, _) = NvramFolderWithAfm();
-        var (stable, stamps) = await NvramSnapshot.WaitForStableAsync([dir], TimeSpan.FromMilliseconds(20), TimeSpan.FromSeconds(5), default);
+        // A quiet folder is stable after two 20 ms checks; the 30 s limit (the agent's own) only
+        // matters when a CI runner stalls, which once took a 5 s limit past its deadline.
+        var (stable, stamps) = await NvramSnapshot.WaitForStableAsync([dir], TimeSpan.FromMilliseconds(20), TimeSpan.FromSeconds(30), default);
         Assert.True(stable);
         Assert.Single(stamps);
     }
