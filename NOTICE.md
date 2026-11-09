@@ -3,7 +3,7 @@
 ## Pinball Memory Maps
 
 This program makes use of content from the Pinball Memory Maps project
-(https://github.com/tomlogic/pinball-memory-maps), pinned at commit `9f01780`.
+(https://github.com/tomlogic/pinball-memory-maps), pinned at commit `eba9020`.
 
 The maps are made available under the Open Database License (ODbL) v1.0; individual
 contents are licensed under the Database Contents License (DbCL) v1.0. See
