@@ -571,6 +571,11 @@ public class TableUpdateFlowTests
         await publisher.RunOnceAsync(default);
         Assert.Contains(s.Discord!.DirectMessages(Friend), m => m.Contains("**24 (Stern 2009)** runs its own script again on **Den**"));
         Assert.Equal(0, await s.CountAsync($"SELECT count(*) FROM table_update WHERE cabinet_id = '{friendCabId}'"));
+
+        // the schema runs again at every start, over the rows already there: once a shared fix existed, an earlier step
+        // re-adding the narrower kind check stopped every server from starting (2026-11-09)
+        Assert.Equal(1, await s.CountAsync("SELECT count(*) FROM table_update WHERE kind = 'fix'"));
+        await s.Service<Db>().MigrateAsync();
     }
 
     [Fact]

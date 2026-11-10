@@ -14,7 +14,9 @@ using PinBot.Updater;
 var composeDir = Environment.GetEnvironmentVariable("PINBOT_COMPOSE_DIR") ?? "/deploy";
 var stateDir = Environment.GetEnvironmentVariable("PINBOT_UPDATE_STATE") ?? "/state";
 var docker = new Docker(composeDir);
-using var stop = new CancellationTokenSource();
+// not disposed: ProcessExit runs after the top-level code returns (every --healthcheck), and Cancel on a disposed source
+// throws, which made each health check fail
+var stop = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };
 AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.Cancel();
 

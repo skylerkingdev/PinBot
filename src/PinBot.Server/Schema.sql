@@ -298,8 +298,8 @@ ALTER TABLE table_file ADD COLUMN IF NOT EXISTS pov_mode text;
 ALTER TABLE table_file ADD COLUMN IF NOT EXISTS pov text;
 ALTER TABLE table_update ADD COLUMN IF NOT EXISTS pov_mode text;
 ALTER TABLE table_update ADD COLUMN IF NOT EXISTS pov text;
-ALTER TABLE table_update DROP CONSTRAINT IF EXISTS table_update_kind_check;
-ALTER TABLE table_update ADD CONSTRAINT table_update_kind_check CHECK (kind IN ('added', 'updated', 'pov'));
+-- (the kind check allowing 'pov' is set by v24 below, with 'fix'. This file runs again at every start, over the rows
+-- already there: re-adding a narrower check here stopped every server once a fix had been shared.)
 ALTER TABLE member_pref ALTER COLUMN share_updates SET DEFAULT 'ask'; -- a member may set only their POV setting
 ALTER TABLE member_pref ADD COLUMN IF NOT EXISTS share_povs text NOT NULL DEFAULT 'ask' CHECK (share_povs IN ('ask', 'always', 'never'));
 
