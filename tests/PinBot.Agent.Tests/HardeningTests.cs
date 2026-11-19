@@ -5,6 +5,7 @@ using PinBot.Contracts;
 namespace PinBot.Agent.Tests;
 
 /// <summary>Edge cases found in review: re-pairing, NVRAM files PinBot changed mid-game, relative table paths.</summary>
+[Collection(PinBotHomeCollection.Name)]
 public class HardeningTests
 {
     /// <summary>A console window with text selected in it: every write waits until the selection ends.</summary>

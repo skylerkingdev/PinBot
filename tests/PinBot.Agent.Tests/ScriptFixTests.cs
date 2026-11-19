@@ -2,6 +2,7 @@ using PinBot.Agent.Discovery;
 
 namespace PinBot.Agent.Tests;
 
+[Collection(PinBotHomeCollection.Name)]
 public class ScriptFixTests
 {
     static string Script(int lines, Func<int, string>? line = null) =>
