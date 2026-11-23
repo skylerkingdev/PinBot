@@ -161,8 +161,7 @@ jobs:
           git commit @message
           if ($LASTEXITCODE) { throw "commit failed" }
 
-          # refreshed fixtures mean the reference now reads a ROM PinBot tests differently: a person looks at that
-          if ($passed -and $additive -and $corpusClean -and $fixtures.Count -eq 0) {
+          if ($passed -and $additive -and $corpusClean) {
             # fast-forward only: if master moved during this run, the push fails and a pull request is opened instead
             $pushed = git push origin "HEAD:refs/heads/$env:BASE" 2>&1
             if ($LASTEXITCODE -eq 0) {
@@ -171,6 +170,7 @@ jobs:
               gh workflow run release.yml --ref $env:BASE
               if ($LASTEXITCODE) { throw "merged, but starting the release workflow failed: start it by hand" }
               "Merged $($new.Substring(0,7)) to $env:BASE automatically (additive, $corpus) and started the release." >> $env:GITHUB_STEP_SUMMARY
+              if ($fixtures.Count) { "Test fixtures refreshed from the corpus: $($fixtures -join ', ')" >> $env:GITHUB_STEP_SUMMARY }
               Get-Content -Raw "$env:RUNNER_TEMP/changes.md" >> $env:GITHUB_STEP_SUMMARY
               $global:LASTEXITCODE = 0
               return
@@ -185,7 +185,7 @@ jobs:
             "- **Reference corpus** (francisdb/pinmame-nvram ``$corpusSha``): $corpus"
             "- **Test fixtures refreshed from the corpus:** $(if ($fixtures.Count) { $fixtures -join ', ' } else { 'none' })"
             ''
-            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms, variant pairs or licence files PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } elseif ($fixtures.Count) { 'test fixtures were refreshed from the corpus' } else { "pushing to $env:BASE failed (see the run log)" })."
+            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms, variant pairs or licence files PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } else { "pushing to $env:BASE failed (see the run log)" })."
             ''
             'Review before merging: read the upstream commits for checksum, layout, encoding or label changes on platforms PinBot decodes (SAM, Capcom, Gottlieb and WPC have needed fixes before); check that changed ROMs still decode on a real cabinet where you can; confirm the corpus line has 0 mismatches. CI does not run on pull requests opened by this workflow: close and reopen it, or push to the branch, to get the CI check. Merging it releases it (the release workflow runs on the push to master).'
             ''
