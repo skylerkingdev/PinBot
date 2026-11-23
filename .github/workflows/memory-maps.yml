@@ -2,11 +2,13 @@
 # submodule to upstream HEAD, regenerates src/PinBot.Server/rom-variants.json, updates the pinned commit in NOTICE.md,
 # refreshes the test fixtures copied from the francisdb/pinmame-nvram reference corpus and runs the full test suite with
 # that corpus. Then:
-#   - an additive update (only new ROM ids; no map, platform or variant change for a ROM PinBot already reads) that
-#     passes every test with 0 corpus mismatches is committed to master and released (the release workflow, started
-#     here: pushes made by this workflow do not start other workflows);
-#   - anything else opens (or refreshes) one pull request on the bot/memory-maps branch for a person to review: changes
-#     to maps already in use have needed checksum and layout fixes before (SAM, Capcom, Gottlieb, WPC).
+#   - an update that builds and passes every test with 0 corpus mismatches is committed to master and released (the
+#     release workflow, started here: pushes made by this workflow do not start other workflows), whether it adds
+#     ROMs or changes maps already in use;
+#   - a considerable update (a ROM id removed, a platform or licence file changed, or more than 5% of the ROM ids
+#     PinBot already reads changed: see memory-maps-diff.ps1) or one that fails opens (or refreshes) one pull request
+#     on the bot/memory-maps branch for a person to review. Updates that large have needed checksum and layout fixes
+#     before (SAM, Capcom, Gottlieb, WPC).
 name: Memory maps update
 
 on:
@@ -15,7 +17,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # push the bot/memory-maps branch, or master for an additive update
+  contents: write # push the bot/memory-maps branch, or master for an update released automatically
   pull-requests: write
   actions: write # start the release workflow after an automatic merge
 
@@ -131,10 +133,11 @@ jobs:
           if ($LASTEXITCODE) { throw "tests failed" }
 
       # the only step with write access: everything that runs third-party code (build, tests) came before, without it
-      - name: Release an additive update, or open a pull request
+      - name: Release the update, or open a pull request
         if: steps.check.outputs.changed == '1'
         env:
           GH_TOKEN: ${{ github.token }}
+          WHY: ${{ steps.kind.outputs.why }}
         run: |
           $old = '${{ steps.check.outputs.old }}'; $new = '${{ steps.check.outputs.new }}'
           $passed = '${{ steps.test.outcome }}' -eq 'success'
@@ -144,7 +147,7 @@ jobs:
           $corpus = $m.Value
           if (-not $corpus) { $corpus = if ("$trx" -match 'PINBOT_NVRAM_CORPUS not set') { 'not run: corpus folder not found' } else { 'no result (build or test run failed before it)' } }
           $corpusClean = $m.Success -and [int]$m.Groups[1].Value -gt 0 -and [int]$m.Groups[2].Value -eq 0
-          $additive = '${{ steps.kind.outputs.additive }}' -eq '1'
+          $considerable = '${{ steps.kind.outputs.considerable }}' -ne '0' # held too when the summary step gave no answer
           $addedCount = [int]'${{ steps.kind.outputs.added }}'
           $corpusSha = git -C pinmame-nvram rev-parse --short HEAD
           $run = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -161,15 +164,15 @@ jobs:
           git commit @message
           if ($LASTEXITCODE) { throw "commit failed" }
 
-          if ($passed -and $additive -and $corpusClean) {
+          if ($passed -and $corpusClean -and -not $considerable) {
             # fast-forward only: if master moved during this run, the push fails and a pull request is opened instead
             $pushed = git push origin "HEAD:refs/heads/$env:BASE" 2>&1
             if ($LASTEXITCODE -eq 0) {
               $stale = gh pr list --head $env:BRANCH --state open --json number --jq '.[0].number'
-              if ($stale) { gh pr close $stale --delete-branch --comment "Superseded: $($new.Substring(0,7)) only added maps, passed every test with 0 corpus mismatches, and was merged and released automatically ($run)." }
+              if ($stale) { gh pr close $stale --delete-branch --comment "Superseded: $($new.Substring(0,7)) passed every test with 0 corpus mismatches and was merged and released automatically ($run)." }
               gh workflow run release.yml --ref $env:BASE
               if ($LASTEXITCODE) { throw "merged, but starting the release workflow failed: start it by hand" }
-              "Merged $($new.Substring(0,7)) to $env:BASE automatically (additive, $corpus) and started the release." >> $env:GITHUB_STEP_SUMMARY
+              "Merged $($new.Substring(0,7)) to $env:BASE automatically ($corpus) and started the release." >> $env:GITHUB_STEP_SUMMARY
               if ($fixtures.Count) { "Test fixtures refreshed from the corpus: $($fixtures -join ', ')" >> $env:GITHUB_STEP_SUMMARY }
               Get-Content -Raw "$env:RUNNER_TEMP/changes.md" >> $env:GITHUB_STEP_SUMMARY
               $global:LASTEXITCODE = 0
@@ -185,7 +188,7 @@ jobs:
             "- **Reference corpus** (francisdb/pinmame-nvram ``$corpusSha``): $corpus"
             "- **Test fixtures refreshed from the corpus:** $(if ($fixtures.Count) { $fixtures -join ', ' } else { 'none' })"
             ''
-            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms, variant pairs or licence files PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } else { "pushing to $env:BASE failed (see the run log)" })."
+            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } elseif ($considerable) { "it is a considerable change ($(if ($env:WHY) { $env:WHY } else { 'the change summary gave no result' }))" } else { "pushing to $env:BASE failed (see the run log)" })."
             ''
             'Review before merging: read the upstream commits for checksum, layout, encoding or label changes on platforms PinBot decodes (SAM, Capcom, Gottlieb and WPC have needed fixes before); check that changed ROMs still decode on a real cabinet where you can; confirm the corpus line has 0 mismatches. CI does not run on pull requests opened by this workflow: close and reopen it, or push to the branch, to get the CI check. Merging it releases it (the release workflow runs on the push to master).'
             ''

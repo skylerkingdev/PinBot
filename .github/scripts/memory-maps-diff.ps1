@@ -11,9 +11,12 @@ param(
     [string] $OldVariants,
     [string] $NewVariants,
     [int] $MaxList = 150,
-    # writes "additive=1" (only new ROM ids, no change to any map or platform PinBot already reads) or "additive=0",
-    # and "added=N", to this file: the workflow merges additive updates on its own
-    [string] $KindOut
+    # writes "considerable=0" or "considerable=1", "why=..." and "added=N" to this file. The workflow merges and releases
+    # an update on its own unless it is considerable: one that could break score reading for many servers at once
+    # (a ROM id removed, a platform file changed, a licence file changed, or more than MaxChangedPercent of the ROM
+    # ids PinBot already reads changed). Weekly updates have changed 1-2%; the two that needed fixes, 11% and 91%.
+    [string] $KindOut,
+    [double] $MaxChangedPercent = 5
 )
 $ErrorActionPreference = 'Stop'
 
@@ -70,22 +73,25 @@ Section 'ROM ids changed' $changed
 Section 'ROM ids removed' $removed
 Section 'Platform files changed' $platforms.ToArray()
 
-$variantsTouchOld = $false
 if ($NewVariants) {
     $ov = Table (FileText $OldVariants); $nv = Table (FileText $NewVariants)
     $pairsAdded = @($nv.Keys | Where-Object { $ov[$_] -ne $nv[$_] })
     $pairsRemoved = @($ov.Keys | Where-Object { $ov[$_] -ne $nv[$_] })
     Section 'Coin/free play variant pairs added (rom-variants.json)' @($pairsAdded | ForEach-Object { "$_ -> $($nv[$_])" })
     Section 'Coin/free play variant pairs removed (rom-variants.json)' @($pairsRemoved | ForEach-Object { "$_ -> $($ov[$_])" })
-    # a pair that groups or ungroups a ROM PinBot already knew changes which ROMs count as one game
-    $variantsTouchOld = $pairsRemoved.Count -gt 0 -or @($pairsAdded | Where-Object { $oldIndex.ContainsKey($_) -or $oldIndex.ContainsKey($nv[$_]) }).Count -gt 0
 }
 
 # the maps' licence files are built into pinbot.exe and shipped: a change to them is for a person to read
 $licences = @(Invoke-Git diff --name-only $Old $New -- 'LICENSE*')
-if ($licences.Count -gt 0) { Section 'Licence files changed (never merged automatically)' $licences }
+if ($licences.Count -gt 0) { Section 'Licence files changed' $licences }
 
 if ($KindOut) {
-    $additive = $changed.Count -eq 0 -and $removed.Count -eq 0 -and $platforms.Count -eq 0 -and -not $variantsTouchOld -and $licences.Count -eq 0
-    Set-Content -Encoding ascii $KindOut @("additive=$([int]$additive)", "added=$($added.Count)")
+    $percent = if ($oldIndex.Count) { 100.0 * $changed.Count / $oldIndex.Count } else { 100.0 }
+    $why = @(
+        if ($removed.Count -gt 0) { "$($removed.Count) ROM id$(if ($removed.Count -ne 1) { 's' }) removed" }
+        if ($platforms.Count -gt 0) { "$($platforms.Count) platform file$(if ($platforms.Count -ne 1) { 's' }) changed" }
+        if ($licences.Count -gt 0) { 'licence files changed' }
+        if ($percent -gt $MaxChangedPercent) { "$($changed.Count) of $($oldIndex.Count) ROM ids changed ($([math]::Round($percent, 1))%, limit $MaxChangedPercent%)" }
+    )
+    Set-Content -Encoding ascii $KindOut @("considerable=$([int]($why.Count -gt 0))", "why=$($why -join '; ')", "added=$($added.Count)")
 }
