@@ -1,6 +1,7 @@
 # Weekly check for new Pinball Memory Maps commits upstream. When there are any, bumps the vendor/pinball-memory-maps
-# submodule to upstream HEAD, regenerates src/PinBot.Server/rom-variants.json, updates the pinned commit in NOTICE.md and
-# runs the full test suite with the francisdb/pinmame-nvram reference corpus. Then:
+# submodule to upstream HEAD, regenerates src/PinBot.Server/rom-variants.json, updates the pinned commit in NOTICE.md,
+# refreshes the test fixtures copied from the francisdb/pinmame-nvram reference corpus and runs the full test suite with
+# that corpus. Then:
 #   - an additive update (only new ROM ids; no map, platform or variant change for a ROM PinBot already reads) that
 #     passes every test with 0 corpus mismatches is committed to master and released (the release workflow, started
 #     here: pushes made by this workflow do not start other workflows);
@@ -101,6 +102,17 @@ jobs:
           path: pinmame-nvram # inside the workspace; only named files are committed below
           persist-credentials: false
 
+      # tests/Fixtures/nvram holds copies of corpus files (NOTICE.md). A map change upstream changes what the reference
+      # decodes from them, so take the corpus's current copy of every file already held; no file is added.
+      - name: Refresh the copied reference fixtures
+        if: steps.check.outputs.changed == '1'
+        run: |
+          foreach ($f in Get-ChildItem tests/Fixtures/nvram -File) {
+            $src = Join-Path pinmame-nvram/testdata $f.Name
+            if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination $f.FullName -Force }
+          }
+          git status --short -- tests/Fixtures/nvram
+
       - name: Start PostgreSQL
         if: steps.check.outputs.changed == '1'
         run: |
@@ -141,13 +153,16 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git remote set-url origin "https://x-access-token:$env:GH_TOKEN@github.com/$env:GITHUB_REPOSITORY.git"
           git add vendor/pinball-memory-maps src/PinBot.Server/rom-variants.json NOTICE.md
+          git add --update -- tests/Fixtures/nvram # refreshed copies of files already tracked, nothing new
+          $fixtures = @(git diff --cached --name-only -- tests/Fixtures/nvram | ForEach-Object { Split-Path -Leaf $_ })
           $message = @('-m', "Update Pinball Memory Maps to $($new.Substring(0,7))", '-m', "Upstream $env:UPSTREAM/compare/$old...$new", '-m', "Reference corpus: $corpus")
           # the line servers post in their info channel when this release reaches them
           if ($addedCount -gt 0) { $message += @('-m', "Players: High scores of $addedCount more ROM$(if ($addedCount -ne 1) { 's' }) can now be read, so more tables can be used in competitions.") }
           git commit @message
           if ($LASTEXITCODE) { throw "commit failed" }
 
-          if ($passed -and $additive -and $corpusClean) {
+          # refreshed fixtures mean the reference now reads a ROM PinBot tests differently: a person looks at that
+          if ($passed -and $additive -and $corpusClean -and $fixtures.Count -eq 0) {
             # fast-forward only: if master moved during this run, the push fails and a pull request is opened instead
             $pushed = git push origin "HEAD:refs/heads/$env:BASE" 2>&1
             if ($LASTEXITCODE -eq 0) {
@@ -168,8 +183,9 @@ jobs:
             ''
             "- **Build and tests:** $(if ($passed) { 'passed' } else { "**FAILED**, see the [run log]($run)" })"
             "- **Reference corpus** (francisdb/pinmame-nvram ``$corpusSha``): $corpus"
+            "- **Test fixtures refreshed from the corpus:** $(if ($fixtures.Count) { $fixtures -join ', ' } else { 'none' })"
             ''
-            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms, variant pairs or licence files PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } else { "pushing to $env:BASE failed (see the run log)" })."
+            "Why this is not merged automatically: $(if (-not $passed) { 'the build or tests failed' } elseif (-not $additive) { 'it changes maps, platforms, variant pairs or licence files PinBot already uses' } elseif (-not $corpusClean) { 'the reference corpus did not run cleanly' } elseif ($fixtures.Count) { 'test fixtures were refreshed from the corpus' } else { "pushing to $env:BASE failed (see the run log)" })."
             ''
             'Review before merging: read the upstream commits for checksum, layout, encoding or label changes on platforms PinBot decodes (SAM, Capcom, Gottlieb and WPC have needed fixes before); check that changed ROMs still decode on a real cabinet where you can; confirm the corpus line has 0 mismatches. CI does not run on pull requests opened by this workflow: close and reopen it, or push to the branch, to get the CI check. Merging it releases it (the release workflow runs on the push to master).'
             ''
